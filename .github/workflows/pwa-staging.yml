@@ -11,7 +11,7 @@ on:
       - "presentation/**"
       - "subsystems/**"
       - "game-libs/**"
-      - '\\[FSDB\\]PokeMan/**'
+      - '\[FSDB\]PokeMan/**'
       - "scripts/pwa/**"
       - "scripts/prepare-pwa-content.mjs"
       - "scripts/sync-map-presentation.mjs"
