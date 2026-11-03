@@ -19,6 +19,13 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Deploy the already qualified PWA to 8787 (requires repository variable and main)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -35,6 +42,8 @@ jobs:
         github.repository == 'lithdoo-labs/pokeman' &&
         (
           github.event_name == 'pull_request' ||
+          (github.event_name == 'workflow_dispatch' && github.actor == 'lithdoo' &&
+           github.ref == 'refs/heads/main') ||
           (
             github.event_name == 'workflow_run' &&
             github.event.workflow_run.conclusion == 'success' &&
@@ -49,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           persist-credentials: false
       - uses: actions/setup-node@v6
@@ -83,7 +92,7 @@ jobs:
           test -x "$LOOMREALM_CHROMIUM_PATH"
           (cd loom-realm && node apps/pwa/scripts/run-e2e.mjs staging)
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_run'
+        if: github.event_name != 'pull_request'
         with:
           name: qualified-pokeman-pwa
           path: loom-realm/apps/pwa/dist/staging/
@@ -95,13 +104,23 @@ jobs:
     needs: qualify
     if: >-
       ${{
-        github.event_name == 'workflow_run' &&
         github.repository == 'lithdoo-labs/pokeman' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        vars.PWA_STAGING_DEPLOY_ENABLED == 'true'
+        vars.PWA_STAGING_DEPLOY_ENABLED == 'true' &&
+        (
+          (
+            github.event_name == 'workflow_run' &&
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          ) ||
+          (
+            github.event_name == 'workflow_dispatch' &&
+            github.ref == 'refs/heads/main' &&
+            github.actor == 'lithdoo' &&
+            inputs.publish == true
+          )
+        )
       }}
     runs-on:
       group: pwa-deploy-labs
@@ -113,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           submodules: recursive
           persist-credentials: false
       - uses: actions/setup-node@v6
@@ -125,7 +144,7 @@ jobs:
           path: loom-realm/apps/pwa/dist/staging/
       - name: Verify approved source and previously qualified artifact
         env:
-          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -134,8 +153,8 @@ jobs:
           node scripts/pwa/verify-staging.mjs
       - name: Publish only if this commit is still main
         env:
-          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
-          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           PWA_DATA_ROOT: /run/desktop/mnt/host/f/lab-data/pwa
           PWA_ENGINE_DATA_ROOT: /run/desktop/mnt/host/f/lab-data/pwa
           PWA_HTTP_PORT: "8787"
