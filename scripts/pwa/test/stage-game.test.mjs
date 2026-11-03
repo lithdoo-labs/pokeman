@@ -68,3 +68,19 @@ test("missing framework input refuses to create a fake PWA build", async (t) => 
   await assert.rejects(stagePokeMan({ gameRoot: root, verifyGitlink: false }),
                        /ENOENT/);
 });
+
+
+test("PWA PR path filter matches the literal FSDB folder and all staging inputs", async () => {
+  const workflow = await readFile(new URL("../../../.github/workflows/pwa-staging.yml", import.meta.url), "utf8");
+  assert.ok(workflow.includes(String.raw`- '\[FSDB\]PokeMan/**'`),
+    "GitHub glob syntax must escape literal FSDB square brackets");
+  for (const required of [
+    "scripts/prepare-pwa-content.mjs",
+    "scripts/sync-map-presentation.mjs",
+    "test/**",
+    "presentation.css",
+    "package.json",
+  ]) {
+    assert.ok(workflow.includes(required), "PWA PR filter missing input " + required);
+  }
+});
