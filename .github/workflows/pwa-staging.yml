@@ -11,8 +11,13 @@ on:
       - "presentation/**"
       - "subsystems/**"
       - "game-libs/**"
-      - "[FSDB]PokeMan/**"
+      - '\[FSDB\]PokeMan/**'
       - "scripts/pwa/**"
+      - "scripts/prepare-pwa-content.mjs"
+      - "scripts/sync-map-presentation.mjs"
+      - "test/**"
+      - "package.json"
+      - "presentation.css"
       - "loom-realm"
       - ".github/workflows/pwa-staging.yml"
   workflow_run:
