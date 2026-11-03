@@ -1,0 +1,34 @@
+name: PWA Runner Smoke (labs)
+
+# Manual-only, trusted main, no source checkout and no deployment changes.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pwa-runner-labs-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: >-
+      ${{
+        github.repository == 'lithdoo-labs/pokeman' &&
+        github.ref == 'refs/heads/main' &&
+        github.actor == 'lithdoo'
+      }}
+    runs-on:
+      group: pwa-deploy-labs
+      labels: [self-hosted, linux, x64, pwa, pwa-labs]
+    timeout-minutes: 5
+    steps:
+      - name: Verify Docker socket and shared release mount (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -S /var/run/docker.sock
+          test -d /run/desktop/mnt/host/f/lab-data/pwa
+          docker version --format '{{.Server.Version}}' >/dev/null
+          echo "PokeMan labs PWA runner is ready"
+          echo "No application files, Compose projects or Docker containers were modified"
