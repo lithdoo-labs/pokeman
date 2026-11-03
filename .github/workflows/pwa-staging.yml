@@ -1,0 +1,173 @@
+name: PokeMan PWA Staging
+
+# PRs are built/tested ONLY on GitHub-hosted runners. After CI passes on
+# trusted main, qualify the same commit and optionally deploy via the org runner.
+on:
+  pull_request:
+    paths:
+      - "game.json"
+      - "launch.pwa.json"
+      - "presentation.json"
+      - "presentation/**"
+      - "subsystems/**"
+      - "game-libs/**"
+      - "[FSDB]PokeMan/**"
+      - "scripts/pwa/**"
+      - "loom-realm"
+      - ".github/workflows/pwa-staging.yml"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Deploy the already qualified PWA to 8787 (requires repository variable and main)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pokeman-pwa-staging-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    name: Qualify canonical PokeMan PWA on GitHub-hosted runner
+    if: >-
+      ${{
+        github.repository == 'lithdoo-labs/pokeman' &&
+        (
+          github.event_name == 'pull_request' ||
+          (github.event_name == 'workflow_dispatch' && github.actor == 'lithdoo' &&
+           github.ref == 'refs/heads/main') ||
+          (
+            github.event_name == 'workflow_run' &&
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Verify pinned LoomRealm and test migration adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:loom-realm)" = "$(git -C loom-realm rev-parse HEAD)"
+          node --test scripts/pwa/test/*.test.mjs
+      - name: Install pinned framework dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd loom-realm
+          npm ci --no-audit --no-fund
+      - name: Stage independent PokeMan sources and build PWA
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/pwa/stage-game.mjs
+          (cd loom-realm && npm run build:staging -w @loomrealm/pwa)
+          EXPECTED_SHA="$(git rev-parse HEAD)" node scripts/pwa/verify-staging.mjs
+      - name: Verify staging in real Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd loom-realm && npx playwright install --with-deps chromium)
+          export LOOMREALM_CHROMIUM_PATH="$(cd loom-realm && node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath())')"
+          test -x "$LOOMREALM_CHROMIUM_PATH"
+          (cd loom-realm && node apps/pwa/scripts/run-e2e.mjs staging)
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: qualified-pokeman-pwa
+          path: loom-realm/apps/pwa/dist/staging/
+          if-no-files-found: error
+          retention-days: 2
+
+  deploy:
+    name: Publish approved PokeMan PWA via labs Docker runner
+    needs: qualify
+    if: >-
+      ${{
+        github.repository == 'lithdoo-labs/pokeman' &&
+        vars.PWA_STAGING_DEPLOY_ENABLED == 'true' &&
+        (
+          (
+            github.event_name == 'workflow_run' &&
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'push' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          ) ||
+          (
+            github.event_name == 'workflow_dispatch' &&
+            github.ref == 'refs/heads/main' &&
+            github.actor == 'lithdoo' &&
+            inputs.publish == true
+          )
+        )
+      }}
+    runs-on:
+      group: pwa-deploy-labs
+      labels: [self-hosted, linux, x64, pwa, pwa-labs]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v4
+        with:
+          name: qualified-pokeman-pwa
+          path: loom-realm/apps/pwa/dist/staging/
+      - name: Verify approved source and previously qualified artifact
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git rev-parse HEAD:loom-realm)" = "$(git -C loom-realm rev-parse HEAD)"
+          node scripts/pwa/verify-staging.mjs
+      - name: Publish only if this commit is still main
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          PWA_DATA_ROOT: /run/desktop/mnt/host/f/lab-data/pwa
+          PWA_ENGINE_DATA_ROOT: /run/desktop/mnt/host/f/lab-data/pwa
+          PWA_HTTP_PORT: "8787"
+          PWA_CANDIDATE_PORT: "8790"
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test -n "$current"
+          if [ "$current" != "$EXPECTED_SHA" ]; then
+            echo "Skipping superseded PokeMan commit $EXPECTED_SHA (main=$current)"
+            exit 0
+          fi
+          test -S /var/run/docker.sock
+          test -d "$PWA_DATA_ROOT"
+          node loom-realm/apps/pwa/scripts/deploy-staging.mjs
