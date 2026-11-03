@@ -56,9 +56,15 @@ export async function verifyStaging({ gameRoot = root, stagingDir = null,
     contentRecords: bundle.content.length,
     executableCount: bundle.executables.length,
   });
-  if (writeProvenance) {
-    await mkdir(dirname(join(dir, "source-provenance.json")), { recursive: true });
-    await writeFile(join(dir, "source-provenance.json"), JSON.stringify(record, null, 2) + "\n");
+  const provenancePath = join(dir, "source-provenance.json");
+  try {
+    const existing = JSON.parse(await readFile(provenancePath, "utf8"));
+    assert.deepEqual(existing, record, "Downloaded artifact provenance must match the approved source");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    if (!writeProvenance) throw new Error("PWA artifact is missing its provenance record");
+    await mkdir(dirname(provenancePath), { recursive: true });
+    await writeFile(provenancePath, JSON.stringify(record, null, 2) + "\n");
   }
   return record;
 }
