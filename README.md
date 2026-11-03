@@ -39,3 +39,14 @@ node --test --test-concurrency=1 test/pokeman-hostra-deepseek.test.mjs
 set LOOMREALM_DEEPSEEK_HOSTRA_QUALIFICATION=1
 node --test --test-name-pattern="direct HTTPS" test/pokeman-hostra-deepseek.test.mjs
 ```
+
+## Issue 驱动的 OpenCode 2 开发
+
+PokeMan 支持独立的 GitHub Issue Agent，使用组织级 `opencode-lithdoo-labs` Runner。该流程与现有 `CI`（LoomRealm + PokeMan/Map 测试）并行运行，不替代 CI。
+
+1. 使用 `lithdoo` 账号创建普通 Issue，写明需求和验收标准。
+2. 在 Issue 评论 `/agent start`，经授权后由 OpenCode 2 完成代码、生成 `agent/issue-N` 分支与 Draft PR，随后自动回复原 Issue。
+3. 审查 PR 后，在 Issue 或 PR 留修改意见，再回到同一 Issue 评论 `/agent revise`；系统恢复**同一个 OpenCode Session**并更新**同一个 PR**。
+4. 所有 PR 由人工审查和合并，Agent 不会自动合并。
+
+默认禁止 Agent 修改 `[FSDB]PokeMan/` 资源、`loom-realm` Submodule、`.github/`、`scripts/ci/` 和权限配置。详细配置、权限需求与验收方法见 [docs/issue-agent.md](docs/issue-agent.md)。
