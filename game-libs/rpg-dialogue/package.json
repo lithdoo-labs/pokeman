@@ -1,0 +1,39 @@
+{
+  "name": "@loomrealm-game/rpg-dialogue",
+  "version": "0.1.0-alpha.0",
+  "type": "module",
+  "description": "RPG dialogue v1 semantic control port and browser presentation",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser/rpg-dialogue.browser.js": "./dist/browser/rpg-dialogue.browser.js",
+    "./browser/rpg-dialogue.browser.css": "./dist/browser/rpg-dialogue.browser.css"
+  },
+  "files": [
+    "dist/"
+  ],
+  "sideEffects": [
+    "./dist/browser/rpg-dialogue.browser.js",
+    "./dist/browser/rpg-dialogue.browser.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && node scripts/build-browser.mjs",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@loomrealm/subsystem": "file:../../loom-realm/packages/subsystem",
+    "@loomrealm/wire": "file:../../loom-realm/packages/wire"
+  },
+  "devDependencies": {
+    "@loomrealm/renderer": "file:../../loom-realm/packages/renderer",
+    "esbuild": "0.25.9",
+    "typescript": "5.9.2"
+  }
+}

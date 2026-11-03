@@ -1,0 +1,1 @@
+{"additionalProperties":false,"properties":{"sprite":{"additionalProperties":false,"properties":{"namespace":{"const":"resource.Graphics"},"key":{"type":"string","pattern":"^Characters/.+"}},"type":"object","required":["namespace","key"]},"name":{"minLength":1,"type":"string"}},"type":"object","required":["name","sprite"]}

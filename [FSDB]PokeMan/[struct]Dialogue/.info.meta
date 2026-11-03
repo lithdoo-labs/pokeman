@@ -1,0 +1,1 @@
+{"additionalProperties":false,"properties":{"speakerName":{"type":"string"},"choices":{"type":"array"},"mutation":{"type":"string"},"lines":{"minItems":1,"items":{"additionalProperties":false,"properties":{"text":{"minLength":1,"type":"string"},"speaker":{"type":"string"}},"type":"object","required":["text"]},"type":"array"}},"type":"object","required":["lines"]}

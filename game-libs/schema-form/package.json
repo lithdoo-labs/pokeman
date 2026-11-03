@@ -1,0 +1,39 @@
+{
+  "name": "@loomrealm-game/schema-form",
+  "version": "0.1.0-alpha.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser/schema-form.browser.js": "./dist/browser/schema-form.browser.js",
+    "./browser/schema-form.browser.css": "./dist/browser/schema-form.browser.css"
+  },
+  "files": [
+    "dist/"
+  ],
+  "sideEffects": [
+    "./dist/browser/schema-form.browser.js",
+    "./dist/browser/schema-form.browser.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && node scripts/build-browser.mjs",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@loomrealm/subsystem": "file:../../loom-realm/packages/subsystem"
+  },
+  "devDependencies": {
+    "@awesome.me/webawesome": "3.14.0",
+    "@loomrealm/renderer": "file:../../loom-realm/packages/renderer",
+    "esbuild": "0.25.9",
+    "lit": "3.3.3",
+    "typescript": "5.9.2"
+  }
+}

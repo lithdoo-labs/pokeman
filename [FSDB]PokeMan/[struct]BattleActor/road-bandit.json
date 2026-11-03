@@ -1,0 +1,12 @@
+{
+    "max_hp":  12,
+    "name":  "路霸",
+    "id":  "road-bandit",
+    "skills":  [
+                   "grab"
+               ],
+    "character":  {
+                      "namespace":  "resource.Graphics",
+                      "key":  "Characters/RoadBandit"
+                  }
+}

@@ -1,0 +1,12 @@
+{
+  "max_hp": 14,
+  "name": "中心管理员",
+  "id": "center-servant",
+  "skills": [
+    "grab"
+  ],
+  "character": {
+    "namespace": "resource.Graphics",
+    "key": "Characters/NPC 03"
+  }
+}

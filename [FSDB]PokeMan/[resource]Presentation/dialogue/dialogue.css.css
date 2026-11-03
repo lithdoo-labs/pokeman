@@ -1,0 +1,27 @@
+lr-dialogue-view {
+  --pokeman-dialogue-backdrop: rgb(4 9 20 / 0.52);
+  --pokeman-dialogue-surface: rgb(249 251 255 / 0.97);
+  --pokeman-dialogue-stage: linear-gradient(160deg, #edf2fa, #e3eaf6);
+  --pokeman-dialogue-text: #172033;
+  --pokeman-dialogue-accent: #456fd3;
+  --pokeman-dialogue-selection: #e2ebff;
+  --pokeman-dialogue-border: rgb(85 105 145 / 0.2);
+  --pokeman-dialogue-radius: 18px;
+  --pokeman-dialogue-shadow: 0 24px 70px rgb(0 0 0 / 0.34);
+  --pokeman-dialogue-font: 400 18px/1.68 system-ui, -apple-system, "Segoe UI", sans-serif;
+  z-index: 20;
+}
+
+lr-dialogue-character,
+lr-dialogue-choice,
+lr-dialogue-history-entry,
+lr-dialogue-control-hint {
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  lr-dialogue-view {
+    --pokeman-dialogue-font: 400 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    --pokeman-dialogue-radius: 14px;
+  }
+}

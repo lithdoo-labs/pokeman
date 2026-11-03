@@ -1,0 +1,7 @@
+{
+    "sprite":  {
+                   "namespace":  "resource.Graphics",
+                   "key":  "Characters/RivalLab"
+               },
+    "name":  "宿敌（研究所）"
+}

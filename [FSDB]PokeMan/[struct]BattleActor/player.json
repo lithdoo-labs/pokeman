@@ -1,0 +1,12 @@
+{
+    "max_hp":  20,
+    "name":  "主公",
+    "id":  "player",
+    "skills":  [
+                   "firebolt"
+               ],
+    "character":  {
+                      "namespace":  "resource.Graphics",
+                      "key":  "Characters/Player"
+                  }
+}

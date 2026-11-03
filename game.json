@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "initial": {
+    "subsystem": "base",
+    "input": {
+      "mapId": 3,
+      "x": 3,
+      "y": 8,
+      "characterName": "Player"
+    }
+  },
+  "subsystems": [
+    { "key": "base" },
+    { "key": "map" },
+    { "key": "dialogue" },
+    { "key": "battle" },
+    { "key": "message" }
+  ]
+}

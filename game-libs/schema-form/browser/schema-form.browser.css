@@ -1,0 +1,13 @@
+@import "@awesome.me/webawesome/dist/styles/themes/default.css";
+@import "@awesome.me/webawesome/dist/styles/color/palettes/default.css";
+
+/* Schema Form v1 host-level modal presentation styles. Component internals are
+   shadow-scoped in the bundled Lit implementation. */
+lr-schema-form {
+  color: var(--wa-color-text-normal);
+  font-family: var(--wa-font-family-body);
+}
+
+lr-schema-form-field {
+  display: block;
+}

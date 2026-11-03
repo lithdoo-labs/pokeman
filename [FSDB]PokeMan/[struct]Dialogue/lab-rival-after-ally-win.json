@@ -1,0 +1,7 @@
+{
+  "mutation": "prologue-battle-resolved",
+  "lines": [
+    { "speaker": "rival", "text": "这次是你赢了。没想到我的显现体在你手里能发挥到这种程度。" },
+    { "speaker": "professor", "text": "结果确认：主角一方胜出。归零的契约正常结算后保留 1 点完整度，双方数值都已写回。" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "states": {
+    "lab-tutorial": {
+      "maps": { "4": { "npcs": {
+        "professor": { "character": "professor", "placement": { "x": 10, "y": 6, "direction": 2 }, "interaction": { "dialogue": "professor-vertical-slice" } },
+        "rival-lab": { "character": "rival", "placement": { "x": 8, "y": 5, "direction": 2 } }
+      } } }
+    },
+    "rival-ready": {
+      "maps": { "4": { "npcs": {
+        "professor": { "character": "professor", "placement": { "x": 10, "y": 6, "direction": 2 } },
+        "rival-lab": { "character": "rival", "placement": { "x": 8, "y": 5, "direction": 2 }, "interaction": { "dialogue": "lab-rival-intro" } }
+      } } }
+    },
+    "after-battle": {
+      "maps": { "4": { "npcs": {
+        "professor": { "character": "professor", "placement": { "x": 10, "y": 6, "direction": 2 }, "interaction": { "dialogue": "professor-first-journey" } },
+        "rival-lab": { "character": "rival", "placement": { "x": 8, "y": 5, "direction": 2 } }
+      } } }
+    }
+  }
+}

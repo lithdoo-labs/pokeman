@@ -1,0 +1,1 @@
+{"type":"object","additionalProperties":false,"required":["tileset_id","width","height","data","behaviors"],"properties":{"tileset_id":{"type":"integer","minimum":1},"width":{"type":"integer","minimum":1},"height":{"type":"integer","minimum":1},"data":{"type":"object"},"behaviors":{"type":"array"}}}

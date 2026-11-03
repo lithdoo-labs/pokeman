@@ -1,0 +1,4 @@
+{
+  "from": { "prologue": "after-battle", "first-route": null },
+  "to": { "prologue": null, "first-route": "active" }
+}

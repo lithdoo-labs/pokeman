@@ -1,0 +1,6 @@
+{
+  "lines": [
+    { "speaker": "professor", "text": "很好。去找研究所另一边的劲敌吧。等你们双方都同意，再开始测试。" }
+  ],
+  "mutation": "prologue-tutorial-ready"
+}

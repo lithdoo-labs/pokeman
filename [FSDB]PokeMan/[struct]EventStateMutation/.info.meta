@@ -1,0 +1,1 @@
+{"additionalProperties":false,"properties":{"to":{"type":"object"},"from":{"type":"object"}},"type":"object","required":["from","to"]}

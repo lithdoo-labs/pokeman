@@ -1,0 +1,44 @@
+{
+  "name": "@loomrealm-game/battle",
+  "version": "0.1.0-alpha.0",
+  "type": "module",
+  "description": "LoomRealm Battle contracts, frozen v0 simulation, DeepSeek decision, and browser presentation",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./presentation": {
+      "types": "./dist/presentation.d.ts",
+      "import": "./dist/presentation.js"
+    },
+    "./simulation": {
+      "types": "./dist/simulation.d.ts",
+      "import": "./dist/simulation.js"
+    },
+    "./decision": {
+      "types": "./dist/decision.d.ts",
+      "import": "./dist/decision.js"
+    },
+    "./decision/testing": {
+      "types": "./dist/decision/testing.d.ts",
+      "import": "./dist/decision/testing.js"
+    },
+    "./browser/battle.browser.js": "./dist/browser/battle.browser.js",
+    "./browser/battle.css": "./dist/browser/battle.css"
+  },
+  "files": ["dist/"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-browser.mjs",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@loomrealm/subsystem": "file:../../loom-realm/packages/subsystem",
+    "@loomrealm-game/tile-presentation": "0.1.0-alpha.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "max_hp": 16,
+  "name": "博士",
+  "id": "professor",
+  "skills": [
+    "grab"
+  ],
+  "character": {
+    "namespace": "resource.Graphics",
+    "key": "Characters/Professor"
+  }
+}

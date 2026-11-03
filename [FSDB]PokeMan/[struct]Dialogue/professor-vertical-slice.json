@@ -1,0 +1,12 @@
+{
+  "lines": [
+    { "speaker": "professor", "text": "来得正好。卡片代表你与角色建立的契约，战斗中显现的是契约力量，不是角色本体。" },
+    { "speaker": "professor", "text": "契约完整度会随战斗消耗并保留到下一场；归零代表显现体被击败，正常结算后最低保留 1 点。" },
+    { "speaker": "professor", "text": "你和劲敌将互换卡片，各自调用对方的显现体。听明白了吗？" }
+  ],
+  "choices": [
+    { "text": "我明白了，去找劲敌", "target": "professor-tutorial-ready" },
+    { "text": "再解释一次", "target": "professor-tutorial-repeat" },
+    { "text": "我想先准备一下", "target": "professor-tutorial-not-yet" }
+  ]
+}

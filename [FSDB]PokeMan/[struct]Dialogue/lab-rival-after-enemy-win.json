@@ -1,0 +1,7 @@
+{
+  "mutation": "prologue-battle-resolved",
+  "lines": [
+    { "speaker": "rival", "text": "这次是我赢了。把卡片修复好再来挑战我。" },
+    { "speaker": "professor", "text": "结果确认：劲敌一方胜出。归零的契约正常结算后保留 1 点完整度，角色本体没有受伤。" }
+  ]
+}

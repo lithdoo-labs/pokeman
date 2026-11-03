@@ -1,0 +1,9 @@
+{
+  "battleActor": {
+    "namespace": "struct.BattleActor",
+    "key": "route-trainee"
+  },
+  "description": "在第一条道路上独自修行，愿意通过挑战认识对手。",
+  "name": "修行者",
+  "aiCharacterText": "克制、自信，重视公平挑战，不喜欢无意义的挑衅。"
+}

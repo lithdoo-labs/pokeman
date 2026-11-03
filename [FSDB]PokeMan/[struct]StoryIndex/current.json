@@ -1,0 +1,17 @@
+{
+  "byMap": {
+    "4": { "events": ["prologue"], "characters": ["professor", "rival"] },
+    "8": { "events": [], "characters": ["rival"] }
+  },
+  "byEvent": {
+    "prologue": { "maps": [4], "characters": ["professor", "rival"] },
+    "first-route": { "maps": [], "characters": [] }
+  },
+  "byCharacter": {
+    "center-servant": { "events": [], "defaultMaps": [] },
+    "player": { "events": [], "defaultMaps": [] },
+    "professor": { "events": ["prologue"], "defaultMaps": [] },
+    "rival": { "events": ["prologue"], "defaultMaps": [8] },
+    "route-trainee": { "events": [], "defaultMaps": [] }
+  }
+}

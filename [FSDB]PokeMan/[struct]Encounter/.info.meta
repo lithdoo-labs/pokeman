@@ -1,0 +1,1 @@
+{"additionalProperties":false,"properties":{"templates":{"type":"object"},"count":{"type":"integer","minimum":1},"spawnPoints":{"type":"array"}},"type":"object","required":["count","spawnPoints","templates"]}

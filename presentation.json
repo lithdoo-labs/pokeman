@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "styles": [
+    { "namespace": "Presentation", "key": "schema-form/schema-form.browser.css" },
+    { "namespace": "Presentation", "key": "map/map.css" },
+    { "namespace": "Presentation", "key": "dialogue/dialogue.css" },
+    { "namespace": "Presentation", "key": "battle/battle.css" },
+    { "namespace": "Presentation", "key": "message/message.css" },
+    { "namespace": "Presentation", "key": "page.css" }
+  ],
+  "scripts": [
+    { "namespace": "Presentation", "key": "schema-form/schema-form.browser.js" },
+    { "namespace": "Presentation", "key": "controls/device-input.browser.js" },
+    { "namespace": "Presentation", "key": "map/map.browser.js" },
+    { "namespace": "Presentation", "key": "dialogue/dialogue.browser.js" },
+    { "namespace": "Presentation", "key": "battle/battle.browser.js" },
+    { "namespace": "Presentation", "key": "message/message.browser.js" }
+  ]
+}

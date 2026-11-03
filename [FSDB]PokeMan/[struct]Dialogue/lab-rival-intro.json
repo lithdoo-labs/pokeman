@@ -1,0 +1,10 @@
+{
+  "lines": [
+    { "speaker": "rival", "text": "总算来了。我们来做一次真正的交换：我把自己的卡交给你，你也把自己的卡交给我。" },
+    { "speaker": "rival", "text": "进入战场的只是各自契约形成的显现。怎么样，愿意交换卡片，堂堂正正比一场吗？" }
+  ],
+  "choices": [
+    { "text": "交换卡片，开始对战", "target": "lab-rival-exchange-accept" },
+    { "text": "我还没准备好", "target": "lab-rival-defer" }
+  ]
+}

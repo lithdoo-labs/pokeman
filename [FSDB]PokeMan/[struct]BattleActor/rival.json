@@ -1,0 +1,13 @@
+{
+    "max_hp":  18,
+    "name":  "宿敌",
+    "id":  "rival",
+    "skills":  [
+                   "firebolt",
+                   "grab"
+               ],
+    "character":  {
+                      "namespace":  "resource.Graphics",
+                      "key":  "Characters/RivalCasual"
+                  }
+}

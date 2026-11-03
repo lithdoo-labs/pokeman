@@ -1,0 +1,7 @@
+{
+  "mutation": "prologue-battle-resolved",
+  "lines": [
+    { "speaker": "rival", "text": "两边怎么一起消散了？" },
+    { "speaker": "professor", "text": "结果确认：双方显现同时失去稳定，本场判定为平局。两份契约都各自保留 1 点完整度。" }
+  ]
+}

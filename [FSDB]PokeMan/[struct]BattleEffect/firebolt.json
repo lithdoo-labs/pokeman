@@ -1,0 +1,13 @@
+{
+  "id": "firebolt",
+  "image": {
+    "namespace": "resource.Graphics",
+    "key": "BattleEffects/Firebolt"
+  },
+  "anchor": "tile-center",
+  "timing": {
+    "fade_in_ticks": 1,
+    "hold_ticks": 2,
+    "fade_out_ticks": 1
+  }
+}

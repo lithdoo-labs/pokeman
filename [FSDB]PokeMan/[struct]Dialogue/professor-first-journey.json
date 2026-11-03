@@ -1,0 +1,9 @@
+{
+  "lines": [
+    { "speaker": "professor", "text": "你们已经亲自体验过契约显现。接下来，请去第一条道路尽头的城镇完成我交代的事。" }
+  ],
+  "choices": [
+    { "text": "我这就出发", "target": "professor-first-journey-accept" },
+    { "text": "我还想准备一下", "target": "professor-first-journey-not-yet" }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "templates": {
+    "road-bandit": {
+      "weight": 3,
+      "engagement": "hostile",
+      "npc": "road-bandit",
+      "dialogue": "route-bandit-threat",
+      "battleActor": {
+        "namespace": "struct.BattleActor",
+        "key": "road-bandit"
+      }
+    }
+  },
+  "count": 1,
+  "spawnPoints": [
+    {
+      "y": 12,
+      "direction": 2,
+      "x": 7
+    },
+    {
+      "y": 8,
+      "direction": 4,
+      "x": 13
+    },
+    {
+      "y": 6,
+      "direction": 8,
+      "x": 20
+    }
+  ]
+}

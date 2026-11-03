@@ -1,0 +1,4 @@
+{
+  "from": { "prologue": "rival-ready" },
+  "to": { "prologue": "after-battle" }
+}

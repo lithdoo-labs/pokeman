@@ -1,0 +1,23 @@
+{
+    "defaultScenes":  {
+                          "8":  {
+                                    "rival-casual":  {
+                                                         "placement":  {
+                                                                           "y":  6,
+                                                                           "direction":  2,
+                                                                           "x":  8
+                                                                       },
+                                                         "interaction":  {
+                                                                             "dialogue":  "lab-rival-intro"
+                                                                         }
+                                                     }
+                                }
+                      },
+    "battleActor":  {
+                        "namespace":  "struct.BattleActor",
+                        "key":  "rival"
+                    },
+    "description":  "从小与主公一起长大的竞争对手。",
+    "name":  "宿敌",
+    "aiCharacterText":  "好胜、自信，不愿轻易服输。"
+}

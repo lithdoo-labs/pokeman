@@ -1,0 +1,28 @@
+{
+  "name": "@loomrealm-example/pokeman",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "game-libs/*"
+  ],
+  "dependencies": {
+    "@loomrealm-game/battle": "0.1.0-alpha.0",
+    "@loomrealm-game/common-controls": "0.1.0-alpha.0",
+    "@loomrealm-game/map": "0.1.0-alpha.0",
+    "@loomrealm-game/rpg-dialogue": "0.1.0-alpha.0",
+    "@loomrealm-game/schema-form": "0.1.0-alpha.0",
+    "@loomrealm/session-events": "file:loom-realm/packages/session-events",
+    "@loomrealm/subsystem": "file:loom-realm/packages/subsystem"
+  },
+  "devDependencies": {
+    "@loomrealm/fsdb": "file:loom-realm/packages/fsdb",
+    "@loomrealm/game-launcher-pwa": "file:loom-realm/packages/game-launcher-pwa",
+    "@loomrealm/game-package": "file:loom-realm/packages/game-package"
+  },
+  "scripts": {
+    "build:m15": "npm run build -w @loomrealm-game/common-controls -w @loomrealm-game/tile-presentation -w @loomrealm-game/map",
+    "pretest": "npm run build -w @loomrealm-game/rpg-dialogue -w @loomrealm-game/schema-form -w @loomrealm-game/battle",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+  }
+}

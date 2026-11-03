@@ -1,0 +1,25 @@
+{
+  "formatVersion": 1,
+  "subsystems": [
+    {
+      "key": "base",
+      "module": "subsystems/base.mjs"
+    },
+    {
+      "key": "map",
+      "module": "subsystems/map.mjs"
+    },
+    {
+      "key": "dialogue",
+      "module": "subsystems/dialogue.mjs"
+    },
+    {
+      "key": "battle",
+      "module": "subsystems/battle.mjs"
+    },
+    {
+      "key": "message",
+      "module": "subsystems/message.mjs"
+    }
+  ]
+}

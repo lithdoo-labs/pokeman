@@ -1,0 +1,10 @@
+{
+  "lines": [
+    { "speaker": "professor", "text": "记住三件事：卡片是契约；受损的是显现完整度；完整度会持续保留并可在城镇中心修复。" },
+    { "speaker": "professor", "text": "完整度归零后，正常结算会保留最低 1 点，因此还能再次显现，但会非常脆弱。现在明白了吗？" }
+  ],
+  "choices": [
+    { "text": "明白了，去找劲敌", "target": "professor-tutorial-ready" },
+    { "text": "我还是想稍后再说", "target": "professor-tutorial-not-yet" }
+  ]
+}

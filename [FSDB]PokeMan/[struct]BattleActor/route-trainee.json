@@ -1,0 +1,13 @@
+{
+  "max_hp": 16,
+  "name": "修行者",
+  "id": "route-trainee",
+  "skills": [
+    "grab",
+    "firebolt"
+  ],
+  "character": {
+    "namespace": "resource.Graphics",
+    "key": "Characters/trainer_BLACKBELT"
+  }
+}

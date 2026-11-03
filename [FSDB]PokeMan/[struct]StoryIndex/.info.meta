@@ -1,0 +1,1 @@
+{"additionalProperties":false,"properties":{"byCharacter":{"type":"object"},"byEvent":{"type":"object"},"byMap":{"type":"object"}},"type":"object","required":["byMap","byCharacter","byEvent"]}

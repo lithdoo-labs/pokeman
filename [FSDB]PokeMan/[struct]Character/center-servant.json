@@ -1,0 +1,9 @@
+{
+  "battleActor": {
+    "namespace": "struct.BattleActor",
+    "key": "center-servant"
+  },
+  "description": "第一城镇中心的服务人员，也是值得继续认识的潜在从者。",
+  "name": "中心管理员",
+  "aiCharacterText": "冷静、专业，对角色卡维护与旅行准备很熟悉。"
+}
