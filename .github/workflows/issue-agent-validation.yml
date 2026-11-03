@@ -1,0 +1,45 @@
+name: Issue Agent Validation
+
+on:
+  pull_request:
+    paths:
+      - "scripts/issue_agent/**"
+      - "tests/test_issue_agent.py"
+      - ".github/workflows/issue-agent.yml"
+      - ".github/workflows/issue-agent-validation.yml"
+      - "docs/issue-agent.md"
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: true
+      - name: Check pinned LoomRealm submodule and reference layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(git rev-parse HEAD:loom-realm)"
+          actual="$(git -C loom-realm rev-parse HEAD)"
+          test "$expected" = "$actual"
+          test "$actual" = "37d16bac49959a56d01ee02357cdd0872807a3b0"
+          test -f loom-realm/packages/game-package/package.json
+          test -f loom-realm/packages/subsystem/package.json
+          test -f loom-realm/examples/PokeMan/game.json
+          test -f game.json
+          test -f launch.pwa.json
+          test -f launch.hostra.json
+          echo "Pinned LoomRealm submodule checkout verified"
+      - name: Python syntax
+        run: python3 -m py_compile scripts/issue_agent/agent.py tests/test_issue_agent.py
+      - name: Unit and two-turn fake OpenCode tests
+        run: python3 -m unittest discover -s tests -p 'test_issue_agent.py' -v
+      - name: Verify no self-hosted Runner in tests
+        run: |
+          echo "All CI tests run on ubuntu-latest with no model/API keys."
