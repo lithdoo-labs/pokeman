@@ -28,7 +28,7 @@ const importMap = JSON.stringify({
     "@loomrealm/subsystem/host": "/loom-realm/packages/subsystem/dist/host/index.js",
     "@loomrealm/renderer": "/loom-realm/packages/renderer/dist/index.js",
     "@loomrealm/renderer/web-presentation": "/loom-realm/packages/renderer/dist/web-presentation.js",
-    "@loomrealm-game/rpg-dialogue": "/game-libs/rpg-dialogue/dist/index.js"
+    "@loomrealm-game/rpg-dialogue": "/loom-realm/game-libs/rpg-dialogue/dist/index.js"
   }
 });
 
@@ -62,7 +62,7 @@ async function fixture(t) {
       return;
     }
     const relative = decodeURIComponent(url.pathname.slice(1));
-    const allowed = (relative.startsWith("loom-realm/packages/") || relative.startsWith("game-libs/")) && relative.includes("/dist/") ||
+    const allowed = (relative.startsWith("loom-realm/packages/") || relative.startsWith("loom-realm/game-libs/") || relative.startsWith("game-libs/")) && relative.includes("/dist/") ||
       relative === "presentation/dialogue.css" || relative === "presentation/dialogue.browser.js";
     if (allowed) {
       try {

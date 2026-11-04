@@ -47,7 +47,7 @@ Battle Presentation 应优先沿用已经实现的 `game-libs/map` 工程惯例�
 Map 当前的核心形态是：
 
 ```text
-@loomrealm-game/map
+@pokeman/game-map
     │
     ├─ RPGMapBuilder(scope, frame)
     │        ↓
@@ -90,7 +90,7 @@ Arena.passable 属 Simulation input；Presentation 不需要使用它做 movemen
 以下对象/代码可以跨多场 Battle 复用：
 
 ```text
-@loomrealm-game/battle package
+@pokeman/game-battle package
 SubsystemScope
 ContentClient / content cache
 Renderer infrastructure
@@ -195,7 +195,7 @@ Battle Presentation v0 MUST 提供：
 import {
   BattlePresentationBuilder,
   type BattlePresentationHandler,
-} from "@loomrealm-game/battle/presentation"
+} from "@pokeman/game-battle/presentation"
 ```
 
 Builder 参考 Map：
@@ -932,14 +932,14 @@ HP 更新应与本次 visual commit 的其他节点使用同一个 `visualEpoch`
 当前仓库实际已共享：
 
 ```text
-@loomrealm-game/tile-presentation
+@pokeman/tile-presentation
 ├─ TILE_SIZE_PX = 32
 ├─ RESIZE_SETTLE_MS = 100
 ├─ TileViewportLayout
 └─ calculateTileViewportLayout(width, height)
 ```
 
-Battle v0 MUST 直接使用这些 exports，不复制 layout 算法，也 MUST NOT 依赖 `@loomrealm-game/map`。
+Battle v0 MUST 直接使用这些 exports，不复制 layout 算法，也 MUST NOT 依赖 `@pokeman/game-map`。
 
 为避免把 Presentation v0 扩大成 Map 基础设施重构，本次 freeze **不要求**再抽取新的 shared browser painter。Battle 的 `battle.browser.js` 自己实现与现有 Map 资源格式兼容的纯视觉：
 
@@ -1364,7 +1364,7 @@ Battle v0 的复用边界已经确定：
 
 ```text
 MUST 直接复用
-- @loomrealm-game/tile-presentation:
+- @pokeman/tile-presentation:
   TILE_SIZE_PX
   RESIZE_SETTLE_MS
   TileViewportLayout
@@ -1378,7 +1378,7 @@ Battle Browser 自己实现纯视觉
 - pixelated rendering
 
 MUST NOT 依赖
-- @loomrealm-game/map Runtime
+- @pokeman/game-map Runtime
 - lr-map-view / lr-map-sprite data contract
 - RPGMap movement / Bridge / Transfer / NPC / MapAction / player input
 ```
@@ -1478,11 +1478,11 @@ Battle clock/tick 属于 Simulation；Projection 到 RenderDomain 的翻译属�
 
 Battle Browser Presentation / RenderDomain implementation 的 shared primitive Gate 已完成：
 
-1. 已创建 `game-libs/tile-presentation` / `@loomrealm-game/tile-presentation`；
+1. 已创建 `game-libs/tile-presentation` / `@pokeman/tile-presentation`；
 2. 已将 Map 验证过的通用 tile viewport layout primitive 迁入该 package；
-3. `@loomrealm-game/map` 已改为依赖并使用 shared implementation；
+3. `@pokeman/game-map` 已改为依赖并使用 shared implementation；
 4. Map layout/runtime regression tests 继续作为集成保障；
-5. `@loomrealm-game/battle` Presentation 实现时再依赖同一 package。
+5. `@pokeman/game-battle` Presentation 实现时再依赖同一 package。
 
 这是一项**渲染层实现前置任务**，不是 Battle Core gameplay 的前置任务。headless Simulation、DecisionPort 和 frozen-rule deterministic tests 不需要等待它。
 

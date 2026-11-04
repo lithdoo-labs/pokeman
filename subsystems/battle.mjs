@@ -1,7 +1,7 @@
 import { cancelled, completed, defineSubsystem, failed } from "@loomrealm/subsystem";
-import { BattlePresentationBuilder } from "@loomrealm-game/battle/presentation";
-import { BattleSimulationBuilder } from "@loomrealm-game/battle/simulation";
-import { DeepSeekDecision } from "@loomrealm-game/battle/decision";
+import { BattlePresentationBuilder } from "@pokeman/game-battle/presentation";
+import { BattleSimulationBuilder } from "@pokeman/game-battle/simulation";
+import { DeepSeekDecision } from "@pokeman/game-battle/decision";
 import { subscribeHostLifecycle } from "@loomrealm/session-events";
 import { DEEPSEEK_SESSION_CONFIG_KEY, isExactDeepSeekSessionConfig } from "./deepseek-config.mjs";
 import { readBattleContracts, settleBattleContracts } from "./business-state.mjs";

@@ -77,7 +77,7 @@ examples/PokeMan/subsystems/map.mjs  -- esbuild --┘
                             existing Renderer/Input/Viewport
 ```
 
-**禁止**直接在 PWA 中访问本地 FSDB 文件路径，或让浏览器 Worker 从 npm 包名解析 `@loomrealm-game/map`。必须先转换 Content identity 并构建安装时可枚举的浏览器 ESM。
+**禁止**直接在 PWA 中访问本地 FSDB 文件路径，或让浏览器 Worker 从 npm 包名解析 `@pokeman/game-map`。必须先转换 Content identity 并构建安装时可枚举的浏览器 ESM。
 
 ## 3. 执行阶段及完成门槛
 
@@ -90,7 +90,7 @@ examples/PokeMan/subsystems/map.mjs  -- esbuild --┘
    ```bash
    npm ci
    npm run build:m17
-   npm test -w @loomrealm-example/pokeman
+   npm test
    npm run test:m17 -w @loomrealm/pwa
    ```
 5. 区分测试所需的 Chromium 安装、Hostra/桌面参考测试与 PWA 本身缺陷。缺少环境时具体指出哪个命令/可执行文件不可用。
@@ -172,7 +172,7 @@ examples/PokeMan/subsystems/map.mjs  -- esbuild --┘
 
 ### P4.5 — Clean build orchestration
 
-Controls migration 已删除 `@loomrealm-game/map` 通过 `prebuild` 隐式构建 `@loomrealm-game/common-controls` 的耦合。顶层 build lane 显式保证依赖顺序：
+Controls migration 已删除 `@pokeman/game-map` 通过 `prebuild` 隐式构建 `@loomrealm-game/common-controls` 的耦合。顶层 build lane 显式保证依赖顺序：
 
 ```text
 build:m14
@@ -204,8 +204,8 @@ run canonical build / qualification commands
    ```bash
    npm ci
    npm run build:m17
-   npm test -w @loomrealm-example/pokeman
-   npm test -w @loomrealm-game/map
+   npm test
+   npm test -w @pokeman/game-map
    npm run test:m17 -w @loomrealm/pwa
    ```
 2. 新增针对 P2/P3 的 Node 单元或 fixture 测试，覆盖 FSDB identity 映射、资源 bytes/MIME、重复身份、缺失引用、Bundle 安装边界与打包 ESM 合法性。不能只靠一个体积庞大的 E2E 覆盖所有错误处理。

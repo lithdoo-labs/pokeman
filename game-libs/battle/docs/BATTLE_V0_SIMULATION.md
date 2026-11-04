@@ -98,7 +98,7 @@ import {
   type BattleClock,
   type ResolvedBattleDefinition,
   type ReplayRecord,
-} from "@loomrealm-game/battle/simulation"
+} from "@pokeman/game-battle/simulation"
 ```
 
 Builder surface 冻结：
@@ -137,7 +137,7 @@ BattleSimulationBuilder / BattleReplayBuilder 都是 one-shot：同一 Builder �
 - SETTLED/CLOSED 后 signal abort 不改写结果；
 - Runtime close 后移除 signal listener。
 
-实现 Simulation 时 package `exports` MUST 新增 `"./simulation"` subpath；`src/simulation.ts` 是该 subpath entry。root `@loomrealm-game/battle` 可以继续导出共享 contracts，但不得要求业务通过 Presentation concrete module 才能构造 Simulation。Decision concrete adapters 未来可独立 subpath，不阻塞本实现。
+实现 Simulation 时 package `exports` MUST 新增 `"./simulation"` subpath；`src/simulation.ts` 是该 subpath entry。root `@pokeman/game-battle` 可以继续导出共享 contracts，但不得要求业务通过 Presentation concrete module 才能构造 Simulation。Decision concrete adapters 未来可独立 subpath，不阻塞本实现。
 
 ## 3. Resolved Simulation input
 
@@ -1768,9 +1768,9 @@ Implementation agent 按以下顺序落地，不重新设计边界：
 Definition of Done：
 
 - `npm run build:battle` passes；
-- `npm test -w @loomrealm-game/battle` passes；
+- `npm test -w @pokeman/game-battle` passes；
 - `npm run test:battle` passes from repo root；
-- `npm pack -w @loomrealm-game/battle --dry-run` includes `dist/simulation.js` / `dist/simulation.d.ts` and package `./simulation` export resolves；
+- `npm pack -w @pokeman/game-battle --dry-run` includes `dist/simulation.js` / `dist/simulation.d.ts` and package `./simulation` export resolves；
 - all Simulation rows in `BATTLE_V0_TEST_MATRIX.md` that do not require real provider/Host wiring have executable automated coverage；
 - Decision availability circuit T-DEC-023..036 全部有自动化覆盖；
 - live Runtime guard 初值固定为 `0 / false`，Replay path不启用 guard；

@@ -1,4 +1,4 @@
-import { calculateTileViewportLayout, RESIZE_SETTLE_MS, TILE_SIZE_PX, type TileViewportLayout } from "@loomrealm-game/tile-presentation";
+import { calculateTileViewportLayout, RESIZE_SETTLE_MS, TILE_SIZE_PX, type TileViewportLayout } from "@pokeman/tile-presentation";
 import type { Frame, RenderDomain, RenderDomainState, RenderDomainUpdate, SubsystemScope, ViewportSize } from "@loomrealm/subsystem";
 import {
   compareActorId, validateBattleEffectContent, validateBattleSceneInit, validateRenderProjection,

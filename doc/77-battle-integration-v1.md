@@ -515,8 +515,8 @@ BattleActor.skills[] 是基础 baseline / 新 Contract 初始化来源；不得�
 PokeMan Presentation 需要注册 Battle package 已发布的 browser artifacts：
 
 ~~~text
-@loomrealm-game/battle/browser/battle.browser.js
-@loomrealm-game/battle/browser/battle.css
+@pokeman/game-battle/browser/battle.browser.js
+@pokeman/game-battle/browser/battle.css
 ~~~
 
 在 PokeMan：

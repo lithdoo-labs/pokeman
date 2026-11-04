@@ -9,7 +9,7 @@
 `game-libs/battle` 的目标是提供可复用 Battle 组件，而不是预先固定一个完整的业务 Subsystem。实现阶段应让三层可以独立导出和替换；exact package export path 属于工程细节，但概念上至少包含：
 
 ```text
-@loomrealm-game/battle
+@pokeman/game-battle
   contracts
   decision
   simulation
@@ -660,7 +660,7 @@ Battle v0 Presentation、Simulation baseline（含 Decision availability circuit
 
 已验证工程状态：
 
-- 根 `package.json` 通过 `game-libs/*` 识别 Battle 和 `@loomrealm-game/tile-presentation`；
+- 根 `package.json` 通过 `game-libs/*` 识别 Battle 和 `@pokeman/tile-presentation`；
 - 根 `package-lock.json` 已通过干净 `npm ci`；
 - `npm run test:battle` 明确构建 subsystem、renderer、tile-presentation、battle，并运行 Battle unit/Browser E2E；
 - Battle package dry-run tarball 包含 `dist/browser/battle.browser.js` 与 `dist/browser/battle.css`。
@@ -673,7 +673,7 @@ Battle v0 Presentation、Simulation baseline（含 Decision availability circuit
 3. 实现 frozen DecisionPort + Mock/Script/Deferred Decision
 4. 跑 frozen-rule deterministic Test Matrix
 5. 外部 BattleActor/BattleSkill serialization schema 可并行/随后收口，不阻塞 headless Runtime
-6. 已完成：@loomrealm-game/tile-presentation layout 抽取 + Map regression
+6. 已完成：@pokeman/tile-presentation layout 抽取 + Map regression
 7. 已完成：按 BATTLE_V0_PRESENTATION.md 的 Agent execution contract 完整实现并闭环验证 Presentation
 8. 在业务 Subsystem 中做薄 composition：构造三层并映射 Frame/Host lifecycle
 9. 已按 BATTLE_V0_DECISION.md + BATTLE_V0_SIMULATION.md §10/§16/§32 实现 DeepSeekDecision 与 Simulation availability circuit delta（tick.ts health signals；runtime.ts live guard/Tick-boundary pause/resume reset/Replay bypass），并完成 T-DEC-023..036 + T-DDEC-* qualification；下一步做 configured DeepSeekTransport / product Host E2E，PlayerGuidance 留到后续独立阶段
@@ -691,6 +691,6 @@ Presentation blocking integration OPEN 已清零。仍未冻结的集成项只�
 - Host/Runtime Control 的具体平台事件来源仍需接线，但映射已冻结：background → `pause("host-background")`，foreground 不自动 resume；两类 pause 都通过 Message 由玩家手动继续/重试；Presentation 的 pause/resume 行为本身已冻结；
 - Runtime 开始后还需处理 package-lock / build 验证。
 
-`@loomrealm-game/tile-presentation` 已落地且 Map 已迁移；Battle v0 明确不启用 viewport clamp/default/min/max normalization。Battle Presentation、Simulation baseline（含 Decision availability circuit）、DeepSeekDecision、BATTLE-003 initialHp 与 BATTLE-004 BattleArena amendments 已完成 qualification；configured DeepSeekTransport 与 PokeMan product/Host composition 已集成并完成 credential-free E2E。
+`@pokeman/tile-presentation` 已落地且 Map 已迁移；Battle v0 明确不启用 viewport clamp/default/min/max normalization。Battle Presentation、Simulation baseline（含 Decision availability circuit）、DeepSeekDecision、BATTLE-003 initialHp 与 BATTLE-004 BattleArena amendments 已完成 qualification；configured DeepSeekTransport 与 PokeMan product/Host composition 已集成并完成 credential-free E2E。
 
 Pause/background、LOS、stalemate 已进入 Core FROZEN 规则，不再属于 Integration OPEN。PokeMan 产品的物理 PWA `visibilitychange` 与 Desktop renderer visibility 已通过 host-owned adapter、`SessionEventHub.createDelegatedPublisher("host")`、`host.lifecycle` 接入 Battle；foreground 仍只开放 Message 手动恢复，不自动 resume。pagehide / navigation 保持 terminal path，不伪装为可恢复 background。

@@ -1,6 +1,6 @@
-import { RESIZE_SETTLE_MS, TILE_SIZE_PX } from "@loomrealm-game/tile-presentation";
+import { RESIZE_SETTLE_MS, TILE_SIZE_PX } from "@pokeman/tile-presentation";
 
-export { RESIZE_SETTLE_MS, TILE_SIZE_PX } from "@loomrealm-game/tile-presentation";
+export { RESIZE_SETTLE_MS, TILE_SIZE_PX } from "@pokeman/tile-presentation";
 
 export type Direction = 2 | 4 | 6 | 8;
 

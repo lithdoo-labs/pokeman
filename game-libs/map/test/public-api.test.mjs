@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RPGMapBuilder, RPGMapError } from "@loomrealm-game/map";
+import { RPGMapBuilder, RPGMapError } from "@pokeman/game-map";
 
 const table = (dimensions, xSize, ySize, zSize, values) => ({ dimensions, xSize, ySize, zSize, values });
 const png = () => {

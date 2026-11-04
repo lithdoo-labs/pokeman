@@ -22,7 +22,7 @@
 | T-ARCH-012 | SIMULATION §16/29 | Tick reducer 需要新 Decision | reducer 只输出 request_decision command；DecisionPort Promise 在同步 Tick stack 外调用，callback 只 enqueue |
 | T-ARCH-013 | SIMULATION §3 | headless Simulation 构造 | 只依赖 ResolvedBattleDefinition + narrow capabilities，不需要 ContentClient/SubsystemScope/Frame |
 | T-ARCH-014 | CONTRACTS §5, SIMULATION §3 | moveTicks=0 或任一 timing 为负数 | validator reject；v0 movement 至少 1 Tick，windup/recovery/protection 可为 0 但不可为负 |
-| T-ARCH-015 | SIMULATION §2 | package build 后 import @loomrealm-game/battle/simulation | subpath export 存在并导出 BattleSimulationBuilder/BattleRuntime/BattleClock；不依赖 Presentation concrete import |
+| T-ARCH-015 | SIMULATION §2 | package build 后 import @pokeman/game-battle/simulation | subpath export 存在并导出 BattleSimulationBuilder/BattleRuntime/BattleClock；不依赖 Presentation concrete import |
 | T-ARCH-016 | SIMULATION §2/5 | Builder build 两次 / run 前 external signal 已 aborted | second build programmer error；pre-aborted run直接 cancelled+CLOSED，不 initialize、不请求Decision、不启动clock |
 | T-ARCH-017 | CONTRACTS §9 | initial DecisionRequest observation | actors/skills actorId+skillId ordinal stable；recentEvents=[]；map/passability为detached committed facts；无 Guidance/runtime generations |
 | T-ARCH-018 | CONTRACTS §6 | 同一 Skill range 包含 0.5/1.0/0.5 | PlanConstraints.minCoefficients = [0.5, 1.0]，去重且数值升序；skills按skillId ordinal |

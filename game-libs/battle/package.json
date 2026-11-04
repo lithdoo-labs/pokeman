@@ -1,5 +1,5 @@
 {
-  "name": "@loomrealm-game/battle",
+  "name": "@pokeman/game-battle",
   "version": "0.1.0-alpha.0",
   "type": "module",
   "description": "LoomRealm Battle contracts, frozen v0 simulation, DeepSeek decision, and browser presentation",
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@loomrealm/subsystem": "file:../../loom-realm/packages/subsystem",
-    "@loomrealm-game/tile-presentation": "0.1.0-alpha.0"
+    "@pokeman/tile-presentation": "0.1.0-alpha.0"
   },
   "devDependencies": {
     "typescript": "5.9.2"

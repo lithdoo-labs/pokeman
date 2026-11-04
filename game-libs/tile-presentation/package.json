@@ -1,5 +1,5 @@
 {
-  "name": "@loomrealm-game/tile-presentation",
+  "name": "@pokeman/tile-presentation",
   "version": "0.1.0-alpha.0",
   "type": "module",
   "main": "./dist/index.js",

@@ -4,7 +4,7 @@ import {
   RESIZE_SETTLE_MS,
   TILE_SIZE_PX,
   calculateTileViewportLayout,
-} from "@loomrealm-game/tile-presentation";
+} from "@pokeman/tile-presentation";
 
 const cases = [
   [640, 480, 32, 640, 448, 20, 14],

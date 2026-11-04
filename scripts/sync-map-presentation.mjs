@@ -120,7 +120,7 @@ async function runNpmBuild(repoRoot) {
       label: "Schema Form browser build",
     }),
     Object.freeze({
-      args: Object.freeze(["run", "build", "-w", "@loomrealm-game/battle"]),
+      args: Object.freeze(["run", "build", "-w", "@pokeman/game-battle"]),
       label: "Battle browser build",
     }),
   ]);

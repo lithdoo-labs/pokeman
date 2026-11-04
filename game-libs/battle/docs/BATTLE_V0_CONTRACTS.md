@@ -1022,7 +1022,7 @@ Decision Inbox 是 Simulation internal runtime structure，不属于 Presentatio
 
 ## 17. ReplayRecord — Simulation public contract
 
-`ReplayRecord` 从 `@loomrealm-game/battle/simulation` 导出，与 `ResolvedBattleDefinition` 同 module ownership；root shared contracts 不反向依赖 Simulation。
+`ReplayRecord` 从 `@pokeman/game-battle/simulation` 导出，与 `ResolvedBattleDefinition` 同 module ownership；root shared contracts 不反向依赖 Simulation。
 
 Replay 必须足以在**不重新调用 Decision/LLM**的情况下复现：
 

@@ -1,15 +1,17 @@
 {
-  "name": "@loomrealm-example/pokeman",
+  "name": "@pokeman/product",
   "version": "0.1.0-alpha.0",
   "private": true,
   "type": "module",
   "workspaces": [
-    "game-libs/*"
+    "game-libs/*",
+    "loom-realm/game-libs/*",
+    "loom-realm/packages/*"
   ],
   "dependencies": {
-    "@loomrealm-game/battle": "0.1.0-alpha.0",
+    "@pokeman/game-battle": "0.1.0-alpha.0",
     "@loomrealm-game/common-controls": "0.1.0-alpha.0",
-    "@loomrealm-game/map": "0.1.0-alpha.0",
+    "@pokeman/game-map": "0.1.0-alpha.0",
     "@loomrealm-game/rpg-dialogue": "0.1.0-alpha.0",
     "@loomrealm-game/schema-form": "0.1.0-alpha.0",
     "@loomrealm/session-events": "file:loom-realm/packages/session-events",
@@ -18,11 +20,17 @@
   "devDependencies": {
     "@loomrealm/fsdb": "file:loom-realm/packages/fsdb",
     "@loomrealm/game-launcher-pwa": "file:loom-realm/packages/game-launcher-pwa",
-    "@loomrealm/game-package": "file:loom-realm/packages/game-package"
+    "@loomrealm/game-package": "file:loom-realm/packages/game-package",
+    "playwright": "1.63.0"
   },
   "scripts": {
-    "build:m15": "npm run build -w @loomrealm-game/common-controls -w @loomrealm-game/tile-presentation -w @loomrealm-game/map",
-    "pretest": "npm run build -w @loomrealm-game/rpg-dialogue -w @loomrealm-game/schema-form -w @loomrealm-game/battle",
-    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+    "build:framework": "npm run build -w @loomrealm/fsdb -w @loomrealm/fsdb-http -w @loomrealm/foundation -w @loomrealm/wire -w @loomrealm/shared-state -w @loomrealm/session-events -w @loomrealm/game-package -w @loomrealm/platform-ports -w @loomrealm/runtime-control -w @loomrealm/renderer-control -w @loomrealm/data -w @loomrealm/subsystem -w @loomrealm/renderer -w @loomrealm/main -w @loomrealm/game-launcher-pwa",
+    "build:game": "npm run build:framework && npm run build -w @pokeman/tile-presentation -w @loomrealm-game/common-controls -w @pokeman/game-map -w @loomrealm-game/schema-form -w @loomrealm-game/rpg-dialogue -w @pokeman/game-battle",
+    "pretest": "npm run build:game",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:map": "npm test -w @pokeman/game-map",
+    "test:essentials-map": "npm run build -w @loomrealm/fsdb -w @loomrealm/fsdb-http && node --test \"test/essentials-map/tools/fixtures/essentials-v21.1/*.test.mjs\"",
+    "test:battle": "npm test -w @pokeman/game-battle",
+    "test:products": "npm run test:map && npm run test:essentials-map && npm run test:battle"
   }
 }

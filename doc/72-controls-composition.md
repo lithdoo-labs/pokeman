@@ -30,7 +30,7 @@ base
 map.mjs
 → product mapping from generic controls to RPGMapControls
 
-@loomrealm-game/map
+@pokeman/game-map
 → Map gameplay only
 ```
 

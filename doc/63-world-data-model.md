@@ -20,7 +20,7 @@
 3. **MVP 玩家 identity 固定为 `struct.Character/player`。** 不另建 `playerCharacterId` State authority。
 4. **Relationship 保存有向长期关系；Contract 是 Relationship 内可选长期契约状态。** Relationship 可以存在而 Contract 不存在。
 5. **Card 与 Relationship / Contract 分离。** Card 只表示当前随身；MVP 不建立 `cardId`。
-6. **Battle Runtime 独立。** Battle live state 只由 `@loomrealm-game/battle` Simulation authority 拥有。
+6. **Battle Runtime 独立。** Battle live state 只由 `@pokeman/game-battle` Simulation authority 拥有。
 7. **PokeMan 不重复定义 BattleActor / BattleSkill / BattleEffect。** PokeMan Game Package 只把 battle contract 绑定到 `struct.BattleActor / struct.BattleSkill / struct.BattleEffect`。
 8. **持久 Character 稳定引用一个基础 BattleActor。** 不因不同 NPC Definition / Map / Event 产生 BattleActor variant。
 9. **Contract 从基础 BattleActor 初始化。** `integrity = max_hp`，`skills[] = copy(BattleActor.skills[])`，Integrity 上限也来自 `max_hp`。

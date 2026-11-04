@@ -93,7 +93,7 @@ jobs:
           export POKEMAN_ROOT="$GITHUB_WORKSPACE"
           export LOOMREALM_CHROMIUM_PATH="$(cd loom-realm && node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath())')"
           test -x "$LOOMREALM_CHROMIUM_PATH"
-          (cd loom-realm && node apps/pwa/scripts/run-e2e.mjs staging)
+          LOOMREALM_PWA_BASE_PATH=/pwa/pokeman/ node loom-realm/apps/pwa/scripts/run-e2e.mjs staging "$GITHUB_WORKSPACE/test/pwa-staging.e2e.mjs"
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
