@@ -53,6 +53,6 @@ PokeMan 支持独立的 GitHub Issue Agent，使用组织级 `opencode-lithdoo-l
 
 ## PWA 部署（组织级 labs Runner）
 
-PokeMan 的 PWA Staging 构建与部署 CI 已从 `lithdoo/loom-realm` 迁往本仓库。主分支的游戏 `CI` 通过后，`PokeMan PWA Staging` 在 GitHub-hosted Runner 上构建和执行 Chromium 验收，最终由组织级 `pwa-runner-labs` 发布已经验收的 Bundle。
+PokeMan 的 PWA Staging 构建与部署 CI 由本仓库管理。PokeMan 自己生成 `installation-bundle v1`，再调用固定 LoomRealm Submodule 的通用 `build:bundle`；构建不再把游戏源码镜像到 `loom-realm/examples/PokeMan` 或 `loom-realm/game-libs`。主分支的游戏 `CI` 通过后，`PokeMan PWA Staging` 在 GitHub-hosted Runner 上构建和执行 Chromium 验收，最终由组织级 `pwa-runner-labs` 发布已经验收的 Bundle。
 
 发布默认关闭（`PWA_STAGING_DEPLOY_ENABLED` 未启用），必须先按 [PWA 迁移文档](doc/pwa-deployment-migration.md) 完成 Runner Group、宿主机注册及旧部署入口退役。旧 `loom-realm/examples/PokeMan` 不再作为游戏发布源；`loom-realm` 只提供固定版本的构建框架。
