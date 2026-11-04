@@ -46,8 +46,14 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
     if (pathname.startsWith("/renderer/") && pathname.endsWith(".js")) { try { response.setHeader("content-type", "text/javascript"); response.end(await readFile(path.join(root, "loom-realm", "packages", "renderer", "dist", "internal", path.basename(pathname)))); } catch { response.statusCode = 404; response.end(); } return; }
     response.setHeader("content-type", "text/html"); response.end("<!doctype html><html><body style='margin:0'></body></html>");
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve)); t.after(() => new Promise((resolve) => server.close(resolve)));
-  const origin = `http://127.0.0.1:${server.address().port}`; const browser = await chromium.launch({ headless: true, ...(executablePath() ? { executablePath: executablePath() } : {}) }); t.after(() => browser.close());
+  let browser;
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    await browser?.close();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  browser = await chromium.launch({ headless: true, ...(executablePath() ? { executablePath: executablePath() } : {}) });
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } }); await page.goto(origin); await page.addStyleTag({ url: `${origin}/battle.css` }); await page.addScriptTag({ url: `${origin}/battle.browser.js` });
   assert.deepEqual(await page.evaluate(async () => { const response = await fetch("/battle.css"); return { ok: response.ok, type: response.headers.get("content-type"), hasViewRule: (await response.text()).includes("lr-battle-view") }; }), { ok: true, type: "text/css", hasViewRule: true });
   await page.evaluate(async ({ origin }) => {
