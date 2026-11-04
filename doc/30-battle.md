@@ -208,7 +208,7 @@ Contract 建立完成以后，`contract.integrity / skills[]` 成为这份 Contr
 
 ## MVP 技能来源
 
-PokeMan 不定义平行 Skill schema，技能定义仍然来自 `@loomrealm-game/battle` 的 BattleSkill Content。
+PokeMan 不定义平行 Skill schema，技能定义仍然来自 `@pokeman/game-battle` 的 BattleSkill Content。
 
 没有 Contract 的本体 / transient actor：
 

@@ -2,7 +2,7 @@ import {
   TILE_SIZE_PX,
   calculateTileViewportLayout,
   type TileViewportLayout,
-} from "@loomrealm-game/tile-presentation";
+} from "@pokeman/tile-presentation";
 
 export type MapLayout = TileViewportLayout;
 

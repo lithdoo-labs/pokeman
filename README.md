@@ -29,7 +29,7 @@ Controls composition 的 canonical landing 见 [`doc/72-controls-composition.md`
 最小检查：
 
 ```bat
-npm test -w @loomrealm-example/pokeman
+npm test
 node --test --test-concurrency=1 test/pokeman-hostra-deepseek.test.mjs
 ```
 

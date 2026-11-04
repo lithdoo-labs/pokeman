@@ -37,11 +37,11 @@ Content
 │  ├─ name / description / fixed AI text
 │  ├─ stable base BattleActor ContentRef
 │  └─ default scene definitions
-├─ struct.NPC                         # @loomrealm-game/map contract
+├─ struct.NPC                         # @pokeman/game-map contract
 │  └─ name + resource.Graphics sprite
-├─ struct.BattleActor                 # @loomrealm-game/battle contract
-├─ struct.BattleSkill                 # @loomrealm-game/battle contract
-├─ struct.BattleEffect                # @loomrealm-game/battle presentation contract
+├─ struct.BattleActor                 # @pokeman/game-battle contract
+├─ struct.BattleSkill                 # @pokeman/game-battle contract
+├─ struct.BattleEffect                # @pokeman/game-battle presentation contract
 ├─ struct.Dialogue
 ├─ struct.Event
 ├─ struct.EventStateMutation
@@ -429,7 +429,7 @@ World-side NPC Instance
 ├─ x / y / direction / pattern
 └─ base BattleActor resolution path
 ↓
-@loomrealm-game/map NPCPlacement[]
+@pokeman/game-map NPCPlacement[]
 ```
 
 `instanceId` 不保存到 Character / Event source Content。

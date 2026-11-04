@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
-import { RPGMapBuilder } from "@loomrealm-game/map";
+import { RPGMapBuilder } from "@pokeman/game-map";
 import { computeCamera, expandTileBounds, JUMP_DURATION_MS, projectTilesInBounds, validateMapRecord, validateTilesetRecord, viewportTileBounds } from "../dist/semantics.js";
 import { calculateLayout } from "../dist/layout.js";
 

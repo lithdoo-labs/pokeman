@@ -1,0 +1,1073 @@
+{
+  "env": {
+    "node": "v24.19.0",
+    "os": "win32 10.0.26300",
+    "cpu": "AMD Ryzen AI 9 365 w/ Radeon 880M              ",
+    "executableShaCommand": "git rev-parse HEAD"
+  },
+  "samples": [
+    {
+      "viewport": "320x240",
+      "position": "center",
+      "player": [
+        64,
+        48
+      ],
+      "camera": {
+        "x": 1904,
+        "y": 1432
+      },
+      "chunkCount": 16,
+      "tileVisualCount": 56,
+      "bytes": 14054,
+      "uniqueDepths": 37,
+      "visibleBytes": 24494080,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 49004544
+    },
+    {
+      "viewport": "320x240",
+      "position": "west",
+      "player": [
+        0,
+        48
+      ],
+      "camera": {
+        "x": 0,
+        "y": 1432
+      },
+      "chunkCount": 12,
+      "tileVisualCount": 56,
+      "bytes": 11099,
+      "uniqueDepths": 37,
+      "visibleBytes": 18202624,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 36421632
+    },
+    {
+      "viewport": "320x240",
+      "position": "east",
+      "player": [
+        127,
+        48
+      ],
+      "camera": {
+        "x": 3776,
+        "y": 1432
+      },
+      "chunkCount": 12,
+      "tileVisualCount": 56,
+      "bytes": 11114,
+      "uniqueDepths": 37,
+      "visibleBytes": 18202624,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 36421632
+    },
+    {
+      "viewport": "320x240",
+      "position": "north",
+      "player": [
+        64,
+        0
+      ],
+      "camera": {
+        "x": 1904,
+        "y": 0
+      },
+      "chunkCount": 8,
+      "tileVisualCount": 56,
+      "bytes": 8147,
+      "uniqueDepths": 21,
+      "visibleBytes": 12238848,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 24494080
+    },
+    {
+      "viewport": "320x240",
+      "position": "south",
+      "player": [
+        64,
+        95
+      ],
+      "camera": {
+        "x": 1904,
+        "y": 2832
+      },
+      "chunkCount": 8,
+      "tileVisualCount": 56,
+      "bytes": 8158,
+      "uniqueDepths": 21,
+      "visibleBytes": 12238848,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 24494080
+    },
+    {
+      "viewport": "320x240",
+      "position": "center-right-union",
+      "player": [
+        64,
+        48
+      ],
+      "chunkCount": 16,
+      "tileVisualCount": 56,
+      "bytes": 14054,
+      "uniqueDepths": 37,
+      "visibleBytes": 24494080,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 49004544
+    },
+    {
+      "viewport": "640x480",
+      "position": "center",
+      "player": [
+        64,
+        48
+      ],
+      "camera": {
+        "x": 1744,
+        "y": 1312
+      },
+      "chunkCount": 24,
+      "tileVisualCount": 56,
+      "bytes": 19962,
+      "uniqueDepths": 37,
+      "visibleBytes": 37076992,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 74170368
+    },
+    {
+      "viewport": "640x480",
+      "position": "west",
+      "player": [
+        0,
+        48
+      ],
+      "camera": {
+        "x": 0,
+        "y": 1312
+      },
+      "chunkCount": 16,
+      "tileVisualCount": 56,
+      "bytes": 14051,
+      "uniqueDepths": 37,
+      "visibleBytes": 24494080,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 49004544
+    },
+    {
+      "viewport": "640x480",
+      "position": "east",
+      "player": [
+        127,
+        48
+      ],
+      "camera": {
+        "x": 3456,
+        "y": 1312
+      },
+      "chunkCount": 16,
+      "tileVisualCount": 56,
+      "bytes": 14070,
+      "uniqueDepths": 37,
+      "visibleBytes": 24494080,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 49004544
+    },
+    {
+      "viewport": "640x480",
+      "position": "north",
+      "player": [
+        64,
+        0
+      ],
+      "camera": {
+        "x": 1744,
+        "y": 0
+      },
+      "chunkCount": 18,
+      "tileVisualCount": 56,
+      "bytes": 15530,
+      "uniqueDepths": 29,
+      "visibleBytes": 27803648,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 55623680
+    },
+    {
+      "viewport": "640x480",
+      "position": "south",
+      "player": [
+        64,
+        95
+      ],
+      "camera": {
+        "x": 1744,
+        "y": 2592
+      },
+      "chunkCount": 18,
+      "tileVisualCount": 56,
+      "bytes": 15545,
+      "uniqueDepths": 29,
+      "visibleBytes": 27803648,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 55623680
+    },
+    {
+      "viewport": "640x480",
+      "position": "center-right-union",
+      "player": [
+        64,
+        48
+      ],
+      "chunkCount": 24,
+      "tileVisualCount": 56,
+      "bytes": 19962,
+      "uniqueDepths": 37,
+      "visibleBytes": 37076992,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 74170368
+    },
+    {
+      "viewport": "800x600",
+      "position": "center",
+      "player": [
+        64,
+        48
+      ],
+      "camera": {
+        "x": 1664,
+        "y": 1252
+      },
+      "chunkCount": 36,
+      "tileVisualCount": 56,
+      "bytes": 28820,
+      "uniqueDepths": 53,
+      "visibleBytes": 55623680,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 111263744
+    },
+    {
+      "viewport": "800x600",
+      "position": "west",
+      "player": [
+        0,
+        48
+      ],
+      "camera": {
+        "x": 0,
+        "y": 1252
+      },
+      "chunkCount": 30,
+      "tileVisualCount": 56,
+      "bytes": 24383,
+      "uniqueDepths": 53,
+      "visibleBytes": 46186496,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 92389376
+    },
+    {
+      "viewport": "800x600",
+      "position": "east",
+      "player": [
+        127,
+        48
+      ],
+      "camera": {
+        "x": 3296,
+        "y": 1252
+      },
+      "chunkCount": 30,
+      "tileVisualCount": 56,
+      "bytes": 24416,
+      "uniqueDepths": 53,
+      "visibleBytes": 46186496,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 92389376
+    },
+    {
+      "viewport": "800x600",
+      "position": "north",
+      "player": [
+        64,
+        0
+      ],
+      "camera": {
+        "x": 1664,
+        "y": 0
+      },
+      "chunkCount": 24,
+      "tileVisualCount": 56,
+      "bytes": 19959,
+      "uniqueDepths": 37,
+      "visibleBytes": 37076992,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 74170368
+    },
+    {
+      "viewport": "800x600",
+      "position": "south",
+      "player": [
+        64,
+        95
+      ],
+      "camera": {
+        "x": 1664,
+        "y": 2472
+      },
+      "chunkCount": 24,
+      "tileVisualCount": 56,
+      "bytes": 19974,
+      "uniqueDepths": 37,
+      "visibleBytes": 37076992,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 74170368
+    },
+    {
+      "viewport": "800x600",
+      "position": "center-right-union",
+      "player": [
+        64,
+        48
+      ],
+      "chunkCount": 36,
+      "tileVisualCount": 56,
+      "bytes": 28820,
+      "uniqueDepths": 53,
+      "visibleBytes": 55623680,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 111263744
+    },
+    {
+      "viewport": "960x540",
+      "position": "center",
+      "player": [
+        64,
+        48
+      ],
+      "camera": {
+        "x": 1584,
+        "y": 1282
+      },
+      "chunkCount": 30,
+      "tileVisualCount": 56,
+      "bytes": 24391,
+      "uniqueDepths": 45,
+      "visibleBytes": 46350336,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 92717056
+    },
+    {
+      "viewport": "960x540",
+      "position": "west",
+      "player": [
+        0,
+        48
+      ],
+      "camera": {
+        "x": 0,
+        "y": 1282
+      },
+      "chunkCount": 25,
+      "tileVisualCount": 56,
+      "bytes": 20693,
+      "uniqueDepths": 45,
+      "visibleBytes": 38486016,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 76988416
+    },
+    {
+      "viewport": "960x540",
+      "position": "east",
+      "player": [
+        127,
+        48
+      ],
+      "camera": {
+        "x": 3136,
+        "y": 1282
+      },
+      "chunkCount": 25,
+      "tileVisualCount": 56,
+      "bytes": 20721,
+      "uniqueDepths": 45,
+      "visibleBytes": 38486016,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 76988416
+    },
+    {
+      "viewport": "960x540",
+      "position": "north",
+      "player": [
+        64,
+        0
+      ],
+      "camera": {
+        "x": 1584,
+        "y": 0
+      },
+      "chunkCount": 24,
+      "tileVisualCount": 56,
+      "bytes": 19959,
+      "uniqueDepths": 37,
+      "visibleBytes": 37076992,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 74170368
+    },
+    {
+      "viewport": "960x540",
+      "position": "south",
+      "player": [
+        64,
+        95
+      ],
+      "camera": {
+        "x": 1584,
+        "y": 2532
+      },
+      "chunkCount": 24,
+      "tileVisualCount": 56,
+      "bytes": 19974,
+      "uniqueDepths": 37,
+      "visibleBytes": 37076992,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 74170368
+    },
+    {
+      "viewport": "960x540",
+      "position": "center-right-union",
+      "player": [
+        64,
+        48
+      ],
+      "chunkCount": 35,
+      "tileVisualCount": 56,
+      "bytes": 28086,
+      "uniqueDepths": 45,
+      "visibleBytes": 54214656,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 108445696
+    },
+    {
+      "viewport": "1280x720",
+      "position": "center",
+      "player": [
+        64,
+        48
+      ],
+      "camera": {
+        "x": 1424,
+        "y": 1192
+      },
+      "chunkCount": 48,
+      "tileVisualCount": 56,
+      "bytes": 37683,
+      "uniqueDepths": 53,
+      "visibleBytes": 74498048,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 149012480
+    },
+    {
+      "viewport": "1280x720",
+      "position": "west",
+      "player": [
+        0,
+        48
+      ],
+      "camera": {
+        "x": 0,
+        "y": 1192
+      },
+      "chunkCount": 36,
+      "tileVisualCount": 56,
+      "bytes": 28812,
+      "uniqueDepths": 53,
+      "visibleBytes": 55623680,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 111263744
+    },
+    {
+      "viewport": "1280x720",
+      "position": "east",
+      "player": [
+        127,
+        48
+      ],
+      "camera": {
+        "x": 2816,
+        "y": 1192
+      },
+      "chunkCount": 36,
+      "tileVisualCount": 56,
+      "bytes": 28851,
+      "uniqueDepths": 53,
+      "visibleBytes": 55623680,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 111263744
+    },
+    {
+      "viewport": "1280x720",
+      "position": "north",
+      "player": [
+        64,
+        0
+      ],
+      "camera": {
+        "x": 1424,
+        "y": 0
+      },
+      "chunkCount": 32,
+      "tileVisualCount": 56,
+      "bytes": 25868,
+      "uniqueDepths": 37,
+      "visibleBytes": 49659904,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 99336192
+    },
+    {
+      "viewport": "1280x720",
+      "position": "south",
+      "player": [
+        64,
+        95
+      ],
+      "camera": {
+        "x": 1424,
+        "y": 2352
+      },
+      "chunkCount": 32,
+      "tileVisualCount": 56,
+      "bytes": 25887,
+      "uniqueDepths": 37,
+      "visibleBytes": 49659904,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 99336192
+    },
+    {
+      "viewport": "1280x720",
+      "position": "center-right-union",
+      "player": [
+        64,
+        48
+      ],
+      "chunkCount": 48,
+      "tileVisualCount": 56,
+      "bytes": 37683,
+      "uniqueDepths": 53,
+      "visibleBytes": 74498048,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 149012480
+    },
+    {
+      "viewport": "1920x1080",
+      "position": "center",
+      "player": [
+        64,
+        48
+      ],
+      "camera": {
+        "x": 1104,
+        "y": 1012
+      },
+      "chunkCount": 80,
+      "tileVisualCount": 56,
+      "bytes": 61312,
+      "uniqueDepths": 69,
+      "visibleBytes": 124502016,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 249020416
+    },
+    {
+      "viewport": "1920x1080",
+      "position": "west",
+      "player": [
+        0,
+        48
+      ],
+      "camera": {
+        "x": 0,
+        "y": 1012
+      },
+      "chunkCount": 72,
+      "tileVisualCount": 56,
+      "bytes": 55381,
+      "uniqueDepths": 69,
+      "visibleBytes": 111919104,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 223854592
+    },
+    {
+      "viewport": "1920x1080",
+      "position": "east",
+      "player": [
+        127,
+        48
+      ],
+      "camera": {
+        "x": 2176,
+        "y": 1012
+      },
+      "chunkCount": 72,
+      "tileVisualCount": 56,
+      "bytes": 55432,
+      "uniqueDepths": 69,
+      "visibleBytes": 111919104,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 223854592
+    },
+    {
+      "viewport": "1920x1080",
+      "position": "north",
+      "player": [
+        64,
+        0
+      ],
+      "camera": {
+        "x": 1104,
+        "y": 0
+      },
+      "chunkCount": 60,
+      "tileVisualCount": 56,
+      "bytes": 46543,
+      "uniqueDepths": 53,
+      "visibleBytes": 93372416,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 186761216
+    },
+    {
+      "viewport": "1920x1080",
+      "position": "south",
+      "player": [
+        64,
+        95
+      ],
+      "camera": {
+        "x": 1104,
+        "y": 1992
+      },
+      "chunkCount": 60,
+      "tileVisualCount": 56,
+      "bytes": 46566,
+      "uniqueDepths": 53,
+      "visibleBytes": 93372416,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 186761216
+    },
+    {
+      "viewport": "1920x1080",
+      "position": "center-right-union",
+      "player": [
+        64,
+        48
+      ],
+      "chunkCount": 80,
+      "tileVisualCount": 56,
+      "bytes": 61312,
+      "uniqueDepths": 69,
+      "visibleBytes": 124502016,
+      "spriteBytes": 8192,
+      "peakCanvasBytes": 249020416
+    }
+  ],
+  "local": {
+    "status": "EVIDENCE MISSING",
+    "path": "C:\\Users\\lithd\\Documents\\GitHub\\pokeman\\examples\\essentials-v21.1-local\\[FSDB]Essentials v21.1"
+  },
+  "renderDomain": {
+    "perSize": [
+      {
+        "viewport": "640x480",
+        "refreshGateMs": 50,
+        "fullUpdateMs": {
+          "n": 15,
+          "min": 0.8116,
+          "p50": 1.3099,
+          "p95": 2.0577,
+          "max": 2.0577,
+          "samples": [
+            2.0076,
+            1.3961,
+            1.3099,
+            1.1172,
+            1.4802,
+            1.5382,
+            2.0577,
+            1.4817,
+            1.2184,
+            0.8116,
+            0.9493,
+            1.0545,
+            1.2381,
+            1.4935,
+            1.105
+          ]
+        },
+        "cameraOnlyUpdateMs": {
+          "n": 15,
+          "min": 0.0099,
+          "p50": 0.0115,
+          "p95": 0.0231,
+          "max": 0.0231,
+          "samples": [
+            0.0161,
+            0.0125,
+            0.0148,
+            0.0114,
+            0.0111,
+            0.0111,
+            0.0111,
+            0.0115,
+            0.0231,
+            0.0118,
+            0.0099,
+            0.0129,
+            0.0131,
+            0.0102,
+            0.0105
+          ]
+        },
+        "refreshBlocked": false,
+        "ordinaryBlocked": false
+      },
+      {
+        "viewport": "1280x720",
+        "refreshGateMs": 75,
+        "fullUpdateMs": {
+          "n": 15,
+          "min": 1.4013,
+          "p50": 1.518,
+          "p95": 2.6977,
+          "max": 2.6977,
+          "samples": [
+            1.5678,
+            1.518,
+            1.4456,
+            1.4345,
+            2.2562,
+            2.6977,
+            1.4324,
+            1.4013,
+            1.4504,
+            1.5691,
+            1.6811,
+            1.6136,
+            1.5117,
+            1.5249,
+            1.5166
+          ]
+        },
+        "cameraOnlyUpdateMs": {
+          "n": 15,
+          "min": 0.0098,
+          "p50": 0.0102,
+          "p95": 0.047,
+          "max": 0.047,
+          "samples": [
+            0.0164,
+            0.0103,
+            0.0122,
+            0.047,
+            0.0101,
+            0.0101,
+            0.0108,
+            0.0102,
+            0.0107,
+            0.0098,
+            0.0099,
+            0.0103,
+            0.0102,
+            0.0102,
+            0.01
+          ]
+        },
+        "refreshBlocked": false,
+        "ordinaryBlocked": false
+      },
+      {
+        "viewport": "1920x1080",
+        "refreshGateMs": 100,
+        "fullUpdateMs": {
+          "n": 15,
+          "min": 2.5823,
+          "p50": 3.8941,
+          "p95": 4.526,
+          "max": 4.526,
+          "samples": [
+            2.5823,
+            2.6778,
+            2.7565,
+            3.0074,
+            3.0778,
+            3.3473,
+            3.7024,
+            4.526,
+            3.9762,
+            4.1483,
+            4.2297,
+            4.4121,
+            4.1836,
+            3.8941,
+            3.9338
+          ]
+        },
+        "cameraOnlyUpdateMs": {
+          "n": 15,
+          "min": 0.0143,
+          "p50": 0.0145,
+          "p95": 0.0158,
+          "max": 0.0158,
+          "samples": [
+            0.0158,
+            0.0148,
+            0.0147,
+            0.0146,
+            0.0144,
+            0.0143,
+            0.0144,
+            0.0146,
+            0.0144,
+            0.0145,
+            0.0144,
+            0.0145,
+            0.0145,
+            0.0145,
+            0.0143
+          ]
+        },
+        "refreshBlocked": false,
+        "ordinaryBlocked": false
+      }
+    ],
+    "residualNote": "Core RenderDomain.update validates only the authored delta, uses indexed target-to-root COW, and does not stringify/probe a Snapshot. Compared to each size's accepted nonresize refresh P95 gate; camera-only compared to the 50ms ordinary gate.",
+    "independentBottleneck": false
+  },
+  "m13": {
+    "equalSelfMs": {
+      "n": 20,
+      "min": 0.0002,
+      "p50": 0.0005,
+      "p95": 0.0034,
+      "max": 0.0417,
+      "samples": [
+        0.0024,
+        0.0005,
+        0.0006,
+        0.0002,
+        0.0003,
+        0.0003,
+        0.0003,
+        0.0034,
+        0.0008,
+        0.0004,
+        0.0003,
+        0.0003,
+        0.0003,
+        0.0417,
+        0.0008,
+        0.0007,
+        0.0008,
+        0.0005,
+        0.0009,
+        0.0006
+      ]
+    },
+    "cameraOnlyMs": {
+      "n": 20,
+      "min": 0.0042,
+      "p50": 0.0043,
+      "p95": 0.0262,
+      "max": 0.0319,
+      "samples": [
+        0.0262,
+        0.0319,
+        0.0255,
+        0.0064,
+        0.0047,
+        0.0042,
+        0.0043,
+        0.0049,
+        0.0047,
+        0.0043,
+        0.0044,
+        0.0042,
+        0.0042,
+        0.0042,
+        0.0042,
+        0.0042,
+        0.0042,
+        0.0042,
+        0.0043,
+        0.0044
+      ]
+    },
+    "independentBottleneck": false
+  },
+  "stacking": {
+    "status": "PASS",
+    "cases": [
+      {
+        "name": "priority0-sprite-on-top",
+        "pixel": [
+          0,
+          255,
+          0,
+          255
+        ],
+        "hostSpriteZ": "",
+        "hostSpriteLeft": ""
+      },
+      {
+        "name": "priority5-tile-covers-sprite",
+        "pixel": [
+          0,
+          0,
+          255,
+          255
+        ],
+        "hostSpriteZ": "",
+        "hostSpriteLeft": ""
+      },
+      {
+        "name": "equal-depth-sprite-on-top",
+        "pixel": [
+          0,
+          255,
+          0,
+          255
+        ],
+        "hostSpriteZ": "",
+        "hostSpriteLeft": ""
+      },
+      {
+        "name": "tall-sprite-above-priority0",
+        "pixel": [
+          0,
+          255,
+          0,
+          255
+        ],
+        "hostSpriteZ": "",
+        "hostSpriteLeft": ""
+      }
+    ]
+  },
+  "raster": {
+    "viewBytes": 35008,
+    "receiveMs": 4.700000047683716,
+    "receiveToPaintMs": 30.399999856948853,
+    "canvasCount": 28,
+    "backingBytes": 15896576,
+    "hostSpriteZ": "3137",
+    "cameraOnly": {
+      "before": {
+        "draws": 2001,
+        "clears": 0,
+        "resizes": 28,
+        "cameraOnly": 0
+      },
+      "after": {
+        "draws": 2001,
+        "clears": 0,
+        "resizes": 28,
+        "cameraOnly": 1
+      }
+    },
+    "clock": "same Browser Window performance.now(); receive-to-paint excludes screenshot",
+    "note": "Current production tiles schema + camera-only identity path."
+  },
+  "maxBytes": 61312,
+  "maxCanvas": 249020416,
+  "maxVisibleCanvas": 124502016,
+  "decodedBytes": 147456,
+  "decodePlusBackingOk": true,
+  "maxLivePlusDecode": 249167872,
+  "canvasBudgetOk": true,
+  "canvasOverBudget": {
+    "overVisible": [],
+    "overLive": []
+  },
+  "pr2Raster": [
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "receiveToPaintMs": 50,
+      "host": [
+        "1280px",
+        "720px"
+      ],
+      "hostBox": [
+        1280,
+        720
+      ],
+      "pixel": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "backingBytes": 34320384,
+      "canvasCount": 34,
+      "cameraOnly": {
+        "before": {
+          "draws": 4263,
+          "clears": 0,
+          "resizes": 34,
+          "cameraOnly": 0
+        },
+        "after": {
+          "draws": 4263,
+          "clears": 0,
+          "resizes": 34,
+          "cameraOnly": 1
+        }
+      },
+      "expected": [
+        "1280px",
+        "720px"
+      ],
+      "viewBytes": 73839
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "receiveToPaintMs": 64.5,
+      "host": [
+        "1920px",
+        "1080px"
+      ],
+      "hostBox": [
+        1920,
+        1080
+      ],
+      "pixel": [
+        0,
+        128,
+        0,
+        255
+      ],
+      "backingBytes": 68628480,
+      "canvasCount": 46,
+      "cameraOnly": {
+        "before": {
+          "draws": 8487,
+          "clears": 0,
+          "resizes": 46,
+          "cameraOnly": 0
+        },
+        "after": {
+          "draws": 8487,
+          "clears": 0,
+          "resizes": 46,
+          "cameraOnly": 1
+        }
+      },
+      "expected": [
+        "1920px",
+        "1080px"
+      ],
+      "viewBytes": 146286
+    }
+  ]
+}

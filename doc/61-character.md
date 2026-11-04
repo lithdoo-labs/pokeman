@@ -88,7 +88,7 @@ Character
 
 PokeMan 不定义平行 Skill / Battle Profile schema。
 
-BattleActor / BattleSkill 的 gameplay contract 直接复用已经存在的 `@loomrealm-game/battle`：
+BattleActor / BattleSkill 的 gameplay contract 直接复用已经存在的 `@pokeman/game-battle`：
 
 ```text
 BattleActor
@@ -115,7 +115,7 @@ struct.BattleActor / <battleActorId>
 struct.BattleSkill / <battleSkillId>
 ```
 
-这只是 PokeMan Game Package 的物理 table / namespace 绑定；BattleActor / BattleSkill 的字段与 gameplay 语义仍由 `@loomrealm-game/battle` contract 定义，不在 PokeMan 复制第二套 schema。因为 battle authored contract 自身包含 `id`，PokeMan binding 要求 FSDB record key 与 value 内 `id` 相等。
+这只是 PokeMan Game Package 的物理 table / namespace 绑定；BattleActor / BattleSkill 的字段与 gameplay 语义仍由 `@pokeman/game-battle` contract 定义，不在 PokeMan 复制第二套 schema。因为 battle authored contract 自身包含 `id`，PokeMan binding 要求 FSDB record key 与 value 内 `id` 相等。
 
 Battle v0 的 Simulation-facing contract 本身就使用 `skillId: string`，BattleActor 当前 authored shape 也是 `skills: string[]`。因此 PokeMan 不再把 Contract skill identity 当成另一套待设计引用：
 
@@ -457,7 +457,7 @@ pokeman.Relationship / A:B
 struct.Character / B
 → struct.BattleActor / <battleActorId>
 ↓
-@loomrealm-game/battle Runtime Actor
+@pokeman/game-battle Runtime Actor
 ```
 
 Battle Simulation 拥有本场 live authority：

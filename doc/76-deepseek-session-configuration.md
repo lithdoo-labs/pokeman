@@ -16,7 +16,7 @@ Game Entry
    → frame.call("map", initial params)
 ~~~
 
-未来 PokeMan 接入 @loomrealm-game/battle 时，Battle v0 的 concrete Decision implementation 使用 DeepSeek。Battle 已经冻结：
+未来 PokeMan 接入 @pokeman/game-battle 时，Battle v0 的 concrete Decision implementation 使用 DeepSeek。Battle 已经冻结：
 
 ~~~text
 Simulation
@@ -697,7 +697,7 @@ Game Entry
 
 ## 14. Future Battle integration
 
-本设计不修改 @loomrealm-game/battle 的 frozen public API。它只在 PokeMan concrete integration 层保留当前阶段的 credential/network ownership 例外。
+本设计不修改 @pokeman/game-battle 的 frozen public API。它只在 PokeMan concrete integration 层保留当前阶段的 credential/network ownership 例外。
 
 未来 PokeMan battle subsystem 的 product composition 应保持：
 
@@ -948,7 +948,7 @@ Implementation MUST 使用上述 exact resource keys，并同步修改 `presenta
 @loomrealm/subsystem
 @loomrealm/shared-state
 @loomrealm-game/schema-form contract
-@loomrealm-game/battle contract
+@pokeman/game-battle contract
 Main
 Renderer/Data protocol
 Session Events

@@ -1,4 +1,4 @@
-import { TILE_SIZE_PX, type TileViewportLayout } from "@loomrealm-game/tile-presentation";
+import { TILE_SIZE_PX, type TileViewportLayout } from "@pokeman/tile-presentation";
 import type {
   ActorRenderProjection,
   GridPosition,

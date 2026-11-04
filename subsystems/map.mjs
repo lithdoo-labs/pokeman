@@ -1,5 +1,5 @@
 import { defineSubsystem, failed } from "@loomrealm/subsystem";
-import { RPGMapBuilder } from "@loomrealm-game/map";
+import { RPGMapBuilder } from "@pokeman/game-map";
 import { createControlsConsumer, createDirectionalControlsTracker } from "@loomrealm-game/common-controls/subsystem";
 import { exchangeRivalCards } from "./business-state.mjs";
 import { qualifyStoryContent, resolveStoryScene } from "./story.mjs";

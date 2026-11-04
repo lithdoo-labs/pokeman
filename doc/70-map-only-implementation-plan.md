@@ -48,7 +48,7 @@
 | `game-libs/map/src/runtime.ts`、`game-libs/map/src/semantics.ts` | Map 运行时 API、转场/位置/朝向语义 |
 | `test/terrain-behavior-live-product.test.mjs`、`test/m15-hostra-product.test.mjs` | 现有产品集成测试模式 |
 
-优先使用框架已经开放的 `@loomrealm/subsystem`、`@loomrealm-game/map` 作者 API；不要绕过公开边界调用 `dist/internal` 或复制 Map Library 逻辑。
+优先使用框架已经开放的 `@loomrealm/subsystem`、`@pokeman/game-map` 作者 API；不要绕过公开边界调用 `dist/internal` 或复制 Map Library 逻辑。
 
 ## 2. 实施步骤及完成门槛
 
@@ -71,12 +71,12 @@
 1. `examples/PokeMan/package.json` 已存在；当前 controls landing 只需保证依赖集合包含：
    ```json
    {
-     "name": "@loomrealm-example/pokeman",
+     "name": "@pokeman/product",
      "version": "0.1.0-alpha.0",
      "private": true,
      "type": "module",
      "dependencies": {
-       "@loomrealm-game/map": "0.1.0-alpha.0",
+       "@pokeman/game-map": "0.1.0-alpha.0",
        "@loomrealm/subsystem": "0.1.0-alpha.0"
      },
      "devDependencies": {
@@ -88,7 +88,7 @@
    }
    ```
 2. 用 npm 更新根 `package-lock.json` 中 workspace 与链接信息；不要手工编辑锁文件或在 root workspaces 中重复添加显式路径。
-3. 重新执行 `npm ci`（有条件时），以及 `npm test -w @loomrealm-example/pokeman`。
+3. 重新执行 `npm ci`（有条件时），以及 `npm test`。
 
 **门槛：** 依赖可安装、workspace 可识别、现有 Smoke Test 可通过；锁文件与包声明一致。
 
@@ -144,7 +144,7 @@
 ```powershell
 npm ci
 npm run build:m15
-npm test -w @loomrealm-example/pokeman
+npm test
 node examples/PokeMan/scripts/sync-map-presentation.mjs
 node examples/PokeMan/scripts/sync-map-presentation.mjs --check
 ```

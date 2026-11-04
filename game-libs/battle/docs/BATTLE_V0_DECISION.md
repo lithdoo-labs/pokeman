@@ -68,8 +68,8 @@ src/
 package exports：
 
 ~~~text
-@loomrealm-game/battle/decision
-@loomrealm-game/battle/decision/testing
+@pokeman/game-battle/decision
+@pokeman/game-battle/decision/testing
 ~~~
 
 public product API：
@@ -174,7 +174,7 @@ interface DecisionWorkflow {
 冻结边界：
 
 - `DecisionWorkflow` 是 **Decision module internal orchestration seam**，不是第四个 Battle runtime layer，也不是新的 gameplay Port；
-- production `@loomrealm-game/battle/decision` 不导出 workflow/stage graph，不要求 Host 注入 workflow；
+- production `@pokeman/game-battle/decision` 不导出 workflow/stage graph，不要求 Host 注入 workflow；
 - `DeepSeekDecision({ transport })` 生产构造函数内部选择当前 frozen v0 workflow；
 - Simulation、Replay、Presentation、Host 不知道也不依赖 workflow 内有几次 LLM call、有哪些 stage、是顺序/分支还是未来其他 topology；
 - `DeepSeekDecision` 不暴露 `analyze()`、`strategize()`、`materialize()` 等 stage-level public methods；
@@ -1119,7 +1119,7 @@ Decision implementation 不得：
 
 ## 14. DeepSeekTransport — external physical capability seam
 
-v0 不创建 generic provider/network abstraction。`DeepSeekTransport` 是 DeepSeek-specific、窄的 physical capability seam，并从 `@loomrealm-game/battle/decision` 导出，因为 production `DeepSeekDecision` 需要由 game/business composition 注入它。
+v0 不创建 generic provider/network abstraction。`DeepSeekTransport` 是 DeepSeek-specific、窄的 physical capability seam，并从 `@pokeman/game-battle/decision` 导出，因为 production `DeepSeekDecision` 需要由 game/business composition 注入它。
 
 其 contract 与 §2 public type 相同：
 
@@ -1200,7 +1200,7 @@ new DeepSeekDecision({
 
 因此 v0 **不再提供**额外的 `createDeepSeekDecisionForTesting()` transport-injection factory。
 
-`@loomrealm-game/battle/decision/testing` 只需要导出测试辅助实现，例如：
+`@pokeman/game-battle/decision/testing` 只需要导出测试辅助实现，例如：
 
 ~~~ts
 export class FakeDeepSeekTransport implements DeepSeekTransport {
@@ -1519,14 +1519,14 @@ Decision implementation 完成后至少运行：
 
 ~~~text
 npm run test:battle
-npm pack -w @loomrealm-game/battle --dry-run
+npm pack -w @pokeman/game-battle --dry-run
 ~~~
 
 并增加 package-resolution assertion：
 
 ~~~text
-@loomrealm-game/battle/decision
-@loomrealm-game/battle/decision/testing
+@pokeman/game-battle/decision
+@pokeman/game-battle/decision/testing
 ~~~
 
 正常 qualification 不允许依赖真实 DeepSeek credential/network。

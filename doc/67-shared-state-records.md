@@ -114,7 +114,7 @@ PlayerWorldValue
 └─ direction: 2 | 4 | 6 | 8
 ```
 
-`mapId` 与 `@loomrealm-game/map` 使用同一业务 identity：正 safe integer，并且必须对应存在的 `struct.Map` record。Content 中 Event / Character defaultScenes / Encounter 等因为 JSON object key 或 FSDB key 必须是字符串，会使用其十进制字符串形式；Shared State value 直接保存整数。
+`mapId` 与 `@pokeman/game-map` 使用同一业务 identity：正 safe integer，并且必须对应存在的 `struct.Map` record。Content 中 Event / Character defaultScenes / Encounter 等因为 JSON object key 或 FSDB key 必须是字符串，会使用其十进制字符串形式；Shared State value 直接保存整数。
 
 该 Record 不保存：
 
@@ -399,7 +399,7 @@ max contract.integrity = BattleActor.max_hp
 skills: string[]
 ```
 
-这里的字符串直接使用现有 `@loomrealm-game/battle` 的 BattleSkill identity：BattleActor authored shape 使用 `skills: string[]`，Simulation / Decision contract 使用 `skillId: string`。PokeMan Game Package 将这些 id 绑定到 `struct.BattleSkill/<skillId>`。
+这里的字符串直接使用现有 `@pokeman/game-battle` 的 BattleSkill identity：BattleActor authored shape 使用 `skills: string[]`，Simulation / Decision contract 使用 `skillId: string`。PokeMan Game Package 将这些 id 绑定到 `struct.BattleSkill/<skillId>`。
 
 结构约束：
 

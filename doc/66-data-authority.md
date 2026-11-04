@@ -73,7 +73,7 @@ NPC Definition 表示地图表现模板，不是 Character identity，也不是�
 
 ## BattleActor / BattleSkill / BattleEffect
 
-PokeMan 直接复用 `@loomrealm-game/battle` Content contract，不定义第二套 Battle profile / skill / effect schema。
+PokeMan 直接复用 `@pokeman/game-battle` Content contract，不定义第二套 Battle profile / skill / effect schema。
 
 PokeMan Game Package 只冻结物理绑定：
 

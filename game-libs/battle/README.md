@@ -1,6 +1,6 @@
 # Battle 游戏库
 
-`@loomrealm-game/battle` 是独立的双 Actor 同时行动战斗系统。
+`@pokeman/game-battle` 是独立的双 Actor 同时行动战斗系统。
 
 核心职责分工：
 
@@ -45,7 +45,7 @@ README 不复制具体 Rule；旧单体设计、迁移矩阵和阶段状态由 G
 - accepted Plan 按 Action materialize；多格 movement 逐格 reservation/commit，不提前生成未来 step event。
 - moving Actor 可以被 damaging hit interrupt；direction、turn、recovery、protection、same-Tick damage 与 simultaneous defeat 均由 Simulation Rule 决定。
 - Presentation 只消费 Scene/Projection/Event；browser/camera/animation 不反向推进 Tick 或修改 Simulation。
-- `game-libs/tile-presentation` 提供 Map/Battle 共用的纯 layout/viewport implementation；Battle 不依赖 `@loomrealm-game/map` Runtime。
+- `game-libs/tile-presentation` 提供 Map/Battle 共用的纯 layout/viewport implementation；Battle 不依赖 `@pokeman/game-map` Runtime。
 
 具体规则、边界条件与 deterministic ordering 只查对应 current spec。
 

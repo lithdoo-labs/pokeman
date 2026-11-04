@@ -46,8 +46,14 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
     if (pathname.startsWith("/renderer/") && pathname.endsWith(".js")) { try { response.setHeader("content-type", "text/javascript"); response.end(await readFile(path.join(root, "loom-realm", "packages", "renderer", "dist", "internal", path.basename(pathname)))); } catch { response.statusCode = 404; response.end(); } return; }
     response.setHeader("content-type", "text/html"); response.end("<!doctype html><html><body style='margin:0'></body></html>");
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve)); t.after(() => new Promise((resolve) => server.close(resolve)));
-  const origin = `http://127.0.0.1:${server.address().port}`; const browser = await chromium.launch({ headless: true, ...(executablePath() ? { executablePath: executablePath() } : {}) }); t.after(() => browser.close());
+  let browser;
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    await browser?.close();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  browser = await chromium.launch({ headless: true, ...(executablePath() ? { executablePath: executablePath() } : {}) });
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } }); await page.goto(origin); await page.addStyleTag({ url: `${origin}/battle.css` }); await page.addScriptTag({ url: `${origin}/battle.browser.js` });
   assert.deepEqual(await page.evaluate(async () => { const response = await fetch("/battle.css"); return { ok: response.ok, type: response.headers.get("content-type"), hasViewRule: (await response.text()).includes("lr-battle-view") }; }), { ok: true, type: "text/css", hasViewRule: true });
   await page.evaluate(async ({ origin }) => {
@@ -82,7 +88,13 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
   const commit = async (state) => { renderDomain.update(updateFor(state)); await settle(); await present(); };
 
   await settle(); await present();
-  await waitFor(page, () => document.querySelectorAll("lr-battle-view lr-battle-actor").length === 2 && [...document.querySelectorAll("lr-battle-actor")].every((element) => element._img) && document.querySelector("lr-battle-actor")?.style.zIndex === "255", "initial actor tree and tall sprite");
+  await waitFor(page, () => {
+    const view = document.querySelector("lr-battle-view");
+    return document.querySelectorAll("lr-battle-view lr-battle-actor").length === 2
+      && [...document.querySelectorAll("lr-battle-actor")].every((element) => element._img)
+      && document.querySelector("lr-battle-actor")?.style.zIndex === "255"
+      && view?.shadowRoot?.querySelectorAll(".tiles canvas").length === 4;
+  }, "initial actor tree, tall sprite, and tile canvases");
   assert.deepEqual(await page.evaluate(() => ({
     tags: [...document.querySelector("lr-battle-view").children].map((element) => element.tagName),
     hud: [...document.querySelector("lr-battle-hud").shadowRoot.querySelectorAll("span")].map((element) => element.textContent),

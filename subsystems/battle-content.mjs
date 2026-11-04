@@ -1,6 +1,6 @@
-import { validateBattleEffectContent } from "@loomrealm-game/battle";
-import { validateResolvedBattleDefinition } from "@loomrealm-game/battle/simulation";
-import { validateBattleArena } from "@loomrealm-game/battle/presentation";
+import { validateBattleEffectContent } from "@pokeman/game-battle";
+import { validateResolvedBattleDefinition } from "@pokeman/game-battle/simulation";
+import { validateBattleArena } from "@pokeman/game-battle/presentation";
 
 function object(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function exact(value, keys) { return object(value) && Reflect.ownKeys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key)); }

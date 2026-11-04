@@ -1,0 +1,933 @@
+{
+  "machine": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "Intel(R) Xeon(R) Processor",
+    "cpuCount": 4,
+    "totalMemBytes": 16780574720,
+    "node": "v22.23.4",
+    "browserVersion": "156.0.8078.47",
+    "label": "before-fix",
+    "warmup": 10,
+    "samples": 100,
+    "startedAt": "2026-10-29T09:17:34.373Z"
+  },
+  "results": [
+    {
+      "workload": {
+        "name": "dense-high-overlap",
+        "viewport": "320x240",
+        "shift": 1,
+        "width": 10,
+        "height": 7,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.699999999720603,
+        "p95": 16.800000000279397,
+        "max": 16.90000000037253,
+        "mean": 16.65099999999162
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.20000000018626451,
+        "p95": 0.3000000002793968,
+        "max": 0.39999999990686774,
+        "mean": 0.21900000001303851
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 64512,
+        "p95": 64512,
+        "max": 64512,
+        "mean": 64512
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 258048,
+        "p95": 258048,
+        "max": 258048,
+        "mean": 258048
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 258048,
+        "p95": 258048,
+        "max": 258048,
+        "mean": 258048
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 7,
+        "p95": 7,
+        "max": 7,
+        "mean": 7
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 7096320,
+        "overlapMaxPixels": 64512,
+        "overlapReadBytes": 28385280,
+        "overlapWriteBytes": 28385280,
+        "overlapGetMs": 20.300000000279397,
+        "overlapPutMs": 3.900000000372529,
+        "overlapCopyMs": 24.200000000651926,
+        "dirty": 770,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "dense-high-overlap",
+        "viewport": "640x480",
+        "shift": 1,
+        "width": 20,
+        "height": 14,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.699999999720603,
+        "p95": 16.899999999906868,
+        "max": 17.100000000093132,
+        "mean": 16.651999999987893
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.7999999998137355,
+        "p95": 0.8999999999068677,
+        "max": 1.099999999627471,
+        "mean": 0.754999999976717
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 272384,
+        "p95": 272384,
+        "max": 272384,
+        "mean": 272384
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 1089536,
+        "p95": 1089536,
+        "max": 1089536,
+        "mean": 1089536
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 1089536,
+        "p95": 1089536,
+        "max": 1089536,
+        "mean": 1089536
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 14,
+        "p95": 14,
+        "max": 14,
+        "mean": 14
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 29962240,
+        "overlapMaxPixels": 272384,
+        "overlapReadBytes": 119848960,
+        "overlapWriteBytes": 119848960,
+        "overlapGetMs": 64.79999999701977,
+        "overlapPutMs": 19.200000000186265,
+        "overlapCopyMs": 83.99999999720603,
+        "dirty": 1540,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "dense-mid-overlap",
+        "viewport": "640x480",
+        "shift": 6,
+        "width": 20,
+        "height": 14,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.600000000093132,
+        "p95": 16.899999999906868,
+        "max": 17.100000000093132,
+        "mean": 16.644999999995342
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.599999999627471,
+        "p95": 0.7999999998137355,
+        "max": 0.7999999998137355,
+        "mean": 0.5709999999729917
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 200704,
+        "p95": 200704,
+        "max": 200704,
+        "mean": 200704
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 802816,
+        "p95": 802816,
+        "max": 802816,
+        "mean": 802816
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 802816,
+        "p95": 802816,
+        "max": 802816,
+        "mean": 802816
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 84,
+        "p95": 84,
+        "max": 84,
+        "mean": 84
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 22077440,
+        "overlapMaxPixels": 200704,
+        "overlapReadBytes": 88309760,
+        "overlapWriteBytes": 88309760,
+        "overlapGetMs": 49.09999999962747,
+        "overlapPutMs": 14.499999998137355,
+        "overlapCopyMs": 63.599999997764826,
+        "dirty": 9240,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "dense-low-overlap",
+        "viewport": "640x480",
+        "shift": 14,
+        "width": 20,
+        "height": 14,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.600000000093132,
+        "p95": 16.90000000037253,
+        "max": 17.100000000093132,
+        "mean": 16.646000000010243
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.39999999990686774,
+        "p95": 0.5,
+        "max": 0.6000000000931323,
+        "mean": 0.3570000000204891
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 86016,
+        "p95": 86016,
+        "max": 86016,
+        "mean": 86016
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 344064,
+        "p95": 344064,
+        "max": 344064,
+        "mean": 344064
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 344064,
+        "p95": 344064,
+        "max": 344064,
+        "mean": 344064
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 196,
+        "p95": 196,
+        "max": 196,
+        "mean": 196
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 9461760,
+        "overlapMaxPixels": 86016,
+        "overlapReadBytes": 37847040,
+        "overlapWriteBytes": 37847040,
+        "overlapGetMs": 27.100000001490116,
+        "overlapPutMs": 11.499999999534339,
+        "overlapCopyMs": 38.600000001024455,
+        "dirty": 21560,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "dense-zero-overlap",
+        "viewport": "640x480",
+        "shift": 20,
+        "width": 20,
+        "height": 14,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.699999999720603,
+        "p95": 16.899999999906868,
+        "max": 17,
+        "mean": 16.653000000002795
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 280,
+        "p95": 280,
+        "max": 280,
+        "mean": 280
+      },
+      "totals": {
+        "overlapSnapshots": 0,
+        "fullNoOverlap": 100,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 0,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 0,
+        "overlapPixels": 0,
+        "overlapMaxPixels": 0,
+        "overlapReadBytes": 0,
+        "overlapWriteBytes": 0,
+        "overlapGetMs": 0,
+        "overlapPutMs": 0,
+        "overlapCopyMs": 0,
+        "dirty": 30800,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 110,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 0,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "sparse-high-overlap",
+        "viewport": "640x480",
+        "shift": 1,
+        "width": 20,
+        "height": 14,
+        "dense": false
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.600000000093132,
+        "p95": 17,
+        "max": 17.200000000186265,
+        "mean": 16.646999999997206
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.7999999998137355,
+        "p95": 1,
+        "max": 2,
+        "mean": 0.7949999999906868
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 272384,
+        "p95": 272384,
+        "max": 272384,
+        "mean": 272384
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 1089536,
+        "p95": 1089536,
+        "max": 1089536,
+        "mean": 1089536
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 1089536,
+        "p95": 1089536,
+        "max": 1089536,
+        "mean": 1089536
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 9,
+        "p95": 10,
+        "max": 10,
+        "mean": 9.33
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 29962240,
+        "overlapMaxPixels": 272384,
+        "overlapReadBytes": 119848960,
+        "overlapWriteBytes": 119848960,
+        "overlapGetMs": 68.99999999906868,
+        "overlapPutMs": 17.600000000558794,
+        "overlapCopyMs": 86.59999999962747,
+        "dirty": 1026,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "dense-high-overlap",
+        "viewport": "1280x720",
+        "shift": 1,
+        "width": 30,
+        "height": 18,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.699999999720603,
+        "p95": 16.800000000279397,
+        "max": 17,
+        "mean": 16.637999999988825
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 1.2999999998137355,
+        "p95": 1.5,
+        "max": 1.7000000001862645,
+        "mean": 1.2829999999981374
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 534528,
+        "p95": 534528,
+        "max": 534528,
+        "mean": 534528
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 2138112,
+        "p95": 2138112,
+        "max": 2138112,
+        "mean": 2138112
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 2138112,
+        "p95": 2138112,
+        "max": 2138112,
+        "mean": 2138112
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 18,
+        "p95": 18,
+        "max": 18,
+        "mean": 18
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 58798080,
+        "overlapMaxPixels": 534528,
+        "overlapReadBytes": 235192320,
+        "overlapWriteBytes": 235192320,
+        "overlapGetMs": 107.8000000026077,
+        "overlapPutMs": 33.5999999968335,
+        "overlapCopyMs": 141.3999999994412,
+        "dirty": 1980,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "dense-high-overlap",
+        "viewport": "1920x1080",
+        "shift": 1,
+        "width": 40,
+        "height": 24,
+        "dense": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.600000000093132,
+        "p95": 16.899999999906868,
+        "max": 17.100000000093132,
+        "mean": 16.617999999988825
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 2.599999999627471,
+        "p95": 4.7000000001862645,
+        "max": 5.300000000279397,
+        "mean": 2.876999999997206
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 958464,
+        "p95": 958464,
+        "max": 958464,
+        "mean": 958464
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 3833856,
+        "p95": 3833856,
+        "max": 3833856,
+        "mean": 3833856
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 3833856,
+        "p95": 3833856,
+        "max": 3833856,
+        "mean": 3833856
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 24,
+        "p95": 24,
+        "max": 24,
+        "mean": 24
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 105431040,
+        "overlapMaxPixels": 958464,
+        "overlapReadBytes": 421724160,
+        "overlapWriteBytes": 421724160,
+        "overlapGetMs": 235.30000000353903,
+        "overlapPutMs": 80.29999999748543,
+        "overlapCopyMs": 315.60000000102445,
+        "dirty": 2640,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "delete-churn",
+        "viewport": "640x480",
+        "shift": 1,
+        "width": 20,
+        "height": 14,
+        "dense": true,
+        "deleteEvery": 3
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.699999999720603,
+        "p95": 16.899999999906868,
+        "max": 21.5,
+        "mean": 16.646999999997206
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.7999999998137355,
+        "p95": 0.900000000372529,
+        "max": 1.3999999999068677,
+        "mean": 0.7979999999934807
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 272384,
+        "p95": 272384,
+        "max": 272384,
+        "mean": 272384
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 1089536,
+        "p95": 1089536,
+        "max": 1089536,
+        "mean": 1089536
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 1089536,
+        "p95": 1089536,
+        "max": 1089536,
+        "mean": 1089536
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 14,
+        "p95": 14,
+        "max": 14,
+        "mean": 11.62
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 29962240,
+        "overlapMaxPixels": 272384,
+        "overlapReadBytes": 119848960,
+        "overlapWriteBytes": 119848960,
+        "overlapGetMs": 68.59999999916181,
+        "overlapPutMs": 18.800000000279397,
+        "overlapCopyMs": 87.3999999994412,
+        "dirty": 1281,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 110,
+        "allocations": 1,
+        "resizes": 1,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    },
+    {
+      "workload": {
+        "name": "depth-churn",
+        "viewport": "640x480",
+        "shift": 1,
+        "width": 12,
+        "height": 8,
+        "dense": true,
+        "depthChurn": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.600000000093132,
+        "p95": 16.899999999906868,
+        "max": 17,
+        "mean": 16.65600000000093
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 0,
+        "p95": 0,
+        "max": 0,
+        "mean": 0
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 96,
+        "p95": 96,
+        "max": 96,
+        "mean": 96
+      },
+      "totals": {
+        "overlapSnapshots": 0,
+        "fullNoOverlap": 100,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 0,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 0,
+        "overlapPixels": 0,
+        "overlapMaxPixels": 0,
+        "overlapReadBytes": 0,
+        "overlapWriteBytes": 0,
+        "overlapGetMs": 0,
+        "overlapPutMs": 0,
+        "overlapCopyMs": 0,
+        "dirty": 10560,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 110,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 0,
+        "allocations": 2,
+        "resizes": 2,
+        "shifts": 110,
+        "live": 2,
+        "pool": 1
+      }
+    },
+    {
+      "workload": {
+        "name": "resize-churn",
+        "viewport": "640x480",
+        "shift": 0,
+        "width": 12,
+        "height": 8,
+        "dense": true,
+        "resize": true
+      },
+      "latencyMs": {
+        "count": 100,
+        "p50": 16.600000000093132,
+        "p95": 16.899999999906868,
+        "max": 17.100000000093132,
+        "mean": 16.651999999997205
+      },
+      "overlapCopyMs": {
+        "count": 100,
+        "p50": 0.3000000002793968,
+        "p95": 0.5,
+        "max": 0.5,
+        "mean": 0.3349999999953434
+      },
+      "overlapPixels": {
+        "count": 100,
+        "p50": 106496,
+        "p95": 129024,
+        "max": 129024,
+        "mean": 108902.4
+      },
+      "overlapReadBytes": {
+        "count": 100,
+        "p50": 425984,
+        "p95": 516096,
+        "max": 516096,
+        "mean": 435609.6
+      },
+      "overlapWriteBytes": {
+        "count": 100,
+        "p50": 425984,
+        "p95": 516096,
+        "max": 516096,
+        "mean": 435609.6
+      },
+      "dirtyCellDraws": {
+        "count": 100,
+        "p50": 21,
+        "p95": 24,
+        "max": 24,
+        "mean": 15.32
+      },
+      "totals": {
+        "overlapSnapshots": 100,
+        "fullNoOverlap": 0,
+        "fullResize": 0,
+        "fullFallback": 0,
+        "incremental": 100,
+        "allocations": 0,
+        "resizes": 0
+      },
+      "finalCounters": {
+        "overlapSnapshots": 110,
+        "overlapPixels": 11968512,
+        "overlapMaxPixels": 129024,
+        "overlapReadBytes": 47874048,
+        "overlapWriteBytes": 46542848,
+        "overlapGetMs": 29.000000002328306,
+        "overlapPutMs": 7.399999998044223,
+        "overlapCopyMs": 36.40000000037253,
+        "dirty": 2016,
+        "full": 1,
+        "fullScene": 1,
+        "fullNoOverlap": 0,
+        "fullResize": 3,
+        "fullFallback": 0,
+        "incremental": 107,
+        "allocations": 1,
+        "resizes": 4,
+        "shifts": 110,
+        "live": 1,
+        "pool": 0
+      }
+    }
+  ]
+}

@@ -1686,7 +1686,7 @@ examples/PokeMan/presentation/dialogue.browser.js
 - 不依赖 runtime dynamic module loader；
 - bundle/script 自己完成全部 `lr-dialogue-*` registration；
 - 顶部先检查全部 canonical tag collision，再开始任何 define；
-- 不加载 generic `game-libs/rpg-dialogue/browser/rpg-dialogue.browser.js`。
+- 不加载 generic `@loomrealm-game/rpg-dialogue` browser bundle。
 
 当前实现不引入额外 TS/esbuild build step；如果未来迁移为 TS，应继续产出相同 classic IIFE runtime artifact，不改变 `presentation.json` contract。
 

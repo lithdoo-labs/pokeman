@@ -1,5 +1,5 @@
 {
-  "name": "@loomrealm-game/map",
+  "name": "@pokeman/game-map",
   "version": "0.1.0-alpha.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@loomrealm/subsystem": "file:../../loom-realm/packages/subsystem",
-    "@loomrealm-game/tile-presentation": "0.1.0-alpha.0"
+    "@pokeman/tile-presentation": "0.1.0-alpha.0"
   },
   "devDependencies": {
     "typescript": "5.9.2"

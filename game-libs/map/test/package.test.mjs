@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { RPGMapBuilder, RPGMapError } from "@loomrealm-game/map";
+import { RPGMapBuilder, RPGMapError } from "@pokeman/game-map";
 
 test("package root exports the Builder/Handler execution model only", async () => {
-  const api = await import("@loomrealm-game/map");
+  const api = await import("@pokeman/game-map");
   assert.deepEqual(Object.keys(api), ["RPGMapBuilder", "RPGMapError"]);
   assert.equal("default" in api, false);
   assert.equal("mapDefinition" in api, false);

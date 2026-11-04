@@ -32,29 +32,29 @@ struct record 的 FSDB key
 │  ├─ rival.json
 │  └─ professor.json
 │
-├─ [struct]NPC/                         # @loomrealm-game/map contract
+├─ [struct]NPC/                         # @pokeman/game-map contract
 │  ├─ .info.meta
 │  ├─ rival-casual.json
 │  ├─ rival-lab.json
 │  └─ road-bandit.json
 │
-├─ [struct]BattleActor/                 # @loomrealm-game/battle contract
+├─ [struct]BattleActor/                 # @pokeman/game-battle contract
 │  ├─ .info.meta
 │  ├─ player.json
 │  ├─ rival.json
 │  └─ road-bandit.json
 │
-├─ [struct]BattleSkill/                 # @loomrealm-game/battle contract
+├─ [struct]BattleSkill/                 # @pokeman/game-battle contract
 │  ├─ .info.meta
 │  ├─ firebolt.json
 │  └─ grab.json
 │
-├─ [struct]BattleEffect/                # @loomrealm-game/battle presentation contract
+├─ [struct]BattleEffect/                # @pokeman/game-battle presentation contract
 │  ├─ .info.meta
 │  ├─ firebolt.json
 │  └─ grab.json
 │
-├─ [struct]BattleArena/                 # @loomrealm-game/battle arena contract
+├─ [struct]BattleArena/                 # @pokeman/game-battle arena contract
 │  ├─ .info.meta
 │  └─ lab-tutorial.json
 │
@@ -218,7 +218,7 @@ eventId
 
 ## Battle package Content 的 PokeMan FSDB binding
 
-PokeMan 不重新定义 BattleActor / BattleSkill / BattleEffect 字段。它把现有 `@loomrealm-game/battle` contract 具体绑定到以下 FSDB table：
+PokeMan 不重新定义 BattleActor / BattleSkill / BattleEffect 字段。它把现有 `@pokeman/game-battle` contract 具体绑定到以下 FSDB table：
 
 ```text
 BattleActor  → struct.BattleActor / <battleActorId>
@@ -472,7 +472,7 @@ Character 不保存 Relationship、Contract、Card 或 Battle Runtime state。
 
 # NPC
 
-PokeMan 不扩展 `@loomrealm-game/map` 已有的 `struct.NPC` record。
+PokeMan 不扩展 `@pokeman/game-map` 已有的 `struct.NPC` record。
 
 ```text
 namespace = struct.NPC

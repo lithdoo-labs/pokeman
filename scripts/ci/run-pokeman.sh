@@ -12,6 +12,7 @@ corepack enable npm
   npm ci --no-audit --no-fund
   npm run build \
     -w @loomrealm/fsdb \
+    -w @loomrealm/fsdb-http \
     -w @loomrealm/foundation \
     -w @loomrealm/wire \
     -w @loomrealm/shared-state \
@@ -27,14 +28,14 @@ corepack enable npm
     -w @loomrealm/game-launcher-pwa
 )
 
-mkdir -p node_modules/@loomrealm-game
+mkdir -p node_modules/@loomrealm-game node_modules/@pokeman
 ln -sfn ../loom-realm/node_modules/@loomrealm node_modules/@loomrealm
-ln -sfn ../../game-libs/battle node_modules/@loomrealm-game/battle
-ln -sfn ../../game-libs/game-common-controls node_modules/@loomrealm-game/common-controls
-ln -sfn ../../game-libs/map node_modules/@loomrealm-game/map
-ln -sfn ../../game-libs/rpg-dialogue node_modules/@loomrealm-game/rpg-dialogue
-ln -sfn ../../game-libs/schema-form node_modules/@loomrealm-game/schema-form
-ln -sfn ../../game-libs/tile-presentation node_modules/@loomrealm-game/tile-presentation
+ln -sfn ../../game-libs/battle node_modules/@pokeman/game-battle
+ln -sfn ../../loom-realm/game-libs/game-common-controls node_modules/@loomrealm-game/common-controls
+ln -sfn ../../game-libs/map node_modules/@pokeman/game-map
+ln -sfn ../../loom-realm/game-libs/rpg-dialogue node_modules/@loomrealm-game/rpg-dialogue
+ln -sfn ../../loom-realm/game-libs/schema-form node_modules/@loomrealm-game/schema-form
+ln -sfn ../../game-libs/tile-presentation node_modules/@pokeman/tile-presentation
 
 link_dependency() {
   local name="$1"
@@ -52,7 +53,10 @@ link_dependency lit
 link_dependency @awesome.me
 
 export PATH="$root/loom-realm/node_modules/.bin:$PATH"
-for package in tile-presentation game-common-controls map schema-form rpg-dialogue battle; do
+for package in game-common-controls schema-form rpg-dialogue; do
+  (cd "loom-realm/game-libs/$package" && npm run build)
+done
+for package in tile-presentation map battle; do
   (cd "game-libs/$package" && npm run build)
 done
 
@@ -62,3 +66,5 @@ test -x "$LOOMREALM_CHROMIUM_PATH"
 
 node --test --test-concurrency=1 test/*.test.mjs
 node --test --test-concurrency=1 game-libs/map/test/*.test.mjs
+node --test --test-concurrency=1 "test/essentials-map/tools/fixtures/essentials-v21.1/*.test.mjs"
+node --test --test-concurrency=1 game-libs/battle/test/*.test.mjs

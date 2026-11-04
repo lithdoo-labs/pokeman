@@ -862,7 +862,7 @@ The following are forbidden implementation targets for this UX fix:
 
 ~~~text
 packages/renderer
-game-libs/rpg-dialogue Runtime / public API
+@loomrealm-game/rpg-dialogue Runtime / public API
 packages/subsystem
 packages/main
 common-controls
@@ -1132,7 +1132,7 @@ If the current E2E path cannot deterministically reach A → B → C, the implem
 实现后至少运行：
 
 ```text
-npm test -w @loomrealm-example/pokeman
+npm test
 npm run test:rpg-dialogue
 npm run build:qualification -w @loomrealm/pwa
 npm run test:unit -w @loomrealm/pwa

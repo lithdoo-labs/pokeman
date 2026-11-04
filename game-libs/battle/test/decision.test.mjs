@@ -424,8 +424,8 @@ test("constructor accepts only configured transport and package subpaths resolve
   assert.throws(() => new DeepSeekDecision({}), /configured transport/);
   assert.throws(() => new DeepSeekDecision({ transport: {}, apiKey: "secret" }), /configured transport/);
   assert.throws(() => new DeepSeekDecision({ transport: new FakeDeepSeekTransport(), model: "other" }), /configured transport/);
-  const product = await import("@loomrealm-game/battle/decision");
-  const testing = await import("@loomrealm-game/battle/decision/testing");
+  const product = await import("@pokeman/game-battle/decision");
+  const testing = await import("@pokeman/game-battle/decision/testing");
   assert.equal(product.DeepSeekDecision, DeepSeekDecision);
   assert.equal(testing.FakeDeepSeekTransport, FakeDeepSeekTransport);
   assert.equal("createDeepSeekDecisionForTesting" in testing, false);

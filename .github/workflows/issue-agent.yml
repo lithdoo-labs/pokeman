@@ -101,7 +101,6 @@ jobs:
           test "$expected" = "$actual"
           test -f loom-realm/packages/game-package/package.json
           test -f loom-realm/packages/subsystem/package.json
-          test -f loom-realm/examples/PokeMan/game.json
           test -f game.json
           test -f launch.pwa.json
           test -f launch.hostra.json
