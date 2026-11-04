@@ -82,7 +82,13 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
   const commit = async (state) => { renderDomain.update(updateFor(state)); await settle(); await present(); };
 
   await settle(); await present();
-  await waitFor(page, () => document.querySelectorAll("lr-battle-view lr-battle-actor").length === 2 && [...document.querySelectorAll("lr-battle-actor")].every((element) => element._img) && document.querySelector("lr-battle-actor")?.style.zIndex === "255", "initial actor tree and tall sprite");
+  await waitFor(page, () => {
+    const view = document.querySelector("lr-battle-view");
+    return document.querySelectorAll("lr-battle-view lr-battle-actor").length === 2
+      && [...document.querySelectorAll("lr-battle-actor")].every((element) => element._img)
+      && document.querySelector("lr-battle-actor")?.style.zIndex === "255"
+      && view?.shadowRoot?.querySelectorAll(".tiles canvas").length === 4;
+  }, "initial actor tree, tall sprite, and tile canvases");
   assert.deepEqual(await page.evaluate(() => ({
     tags: [...document.querySelector("lr-battle-view").children].map((element) => element.tagName),
     hud: [...document.querySelector("lr-battle-hud").shadowRoot.querySelectorAll("span")].map((element) => element.textContent),

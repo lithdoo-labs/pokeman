@@ -28,7 +28,7 @@ jobs:
           expected="$(git rev-parse HEAD:loom-realm)"
           actual="$(git -C loom-realm rev-parse HEAD)"
           test "$expected" = "$actual"
-          test "$actual" = "e76f453ffe435be548f310a7d4ddcec6d28c4f8c"
+          test "$actual" = "93648192323bf5f57996b7b54cbae641d8a53fdb"
           test -f loom-realm/packages/game-package/package.json
           test -f loom-realm/packages/subsystem/package.json
           test -f game.json
