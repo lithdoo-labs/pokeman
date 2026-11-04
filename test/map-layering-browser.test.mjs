@@ -1195,7 +1195,7 @@ test("standing latest state snaps pattern 0 and cancels motion", { timeout: 30_0
 });
 
 test("moving depth is below the tile before the boundary pixel and above at it", { timeout: 30_000 }, async (t) => {
-  const page = await openPage({ clock: true });
+  const page = await openPage();
   t.after(() => page.close());
   await warmPresentation(page);
   await page.evaluate(({ viewPayload, spritePayload }) => {
@@ -1205,14 +1205,26 @@ test("moving depth is below the tile before the boundary pixel and above at it",
     viewPayload: viewData({ depth: 48, cameraMotion: { id: 1, durationMs: 250, fromCameraX: 0, fromCameraY: 0 } }),
     spritePayload: walkingSprite({ y: 1, fromY: 0, screenY: 0, fromScreenY: 0, pattern: 3 }),
   });
-  await page.clock.runFor(0);
+  await waitUntil(page, () => window.__view._acceptedVisualScene?.view.motionId === 1, "moving depth scene accepted");
+  await page.evaluate(() => {
+    const view = window.__view;
+    view._cancelRaf();
+    view._activeMotion.startedAt = performance.now() + 1_000;
+    view._tickAccepted(view._accepted, view._sequence, false);
+    view._cancelRaf();
+  });
   assert.deepEqual(await page.evaluate(() => {
     const spriteZ = Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex);
     const tileZ = document.querySelector("lr-map-view")?.shadowRoot?.querySelector("canvas.tile-layer:not([hidden])")?.style.zIndex;
     return { spriteZ, tileZ };
   }), { spriteZ: 65, tileZ: "96" });
   assert.deepEqual(await compositeCenter(page), [0, 0, 255, 255]);
-  await page.clock.runFor(250);
+  await page.evaluate(() => {
+    const view = window.__view;
+    view._activeMotion.startedAt = performance.now() - view._activeMotion.durationMs;
+    view._tickAccepted(view._accepted, view._sequence, false);
+    view._cancelRaf();
+  });
   assert.ok(await page.evaluate(() => Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex) >= 97));
   assert.deepEqual(await compositeCenter(page), [255, 0, 0, 255]);
 });
