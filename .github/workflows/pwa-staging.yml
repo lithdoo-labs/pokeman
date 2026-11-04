@@ -90,6 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export POKEMAN_ROOT="$GITHUB_WORKSPACE"
           export LOOMREALM_CHROMIUM_PATH="$(cd loom-realm && node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath())')"
           test -x "$LOOMREALM_CHROMIUM_PATH"
           (cd loom-realm && node apps/pwa/scripts/run-e2e.mjs staging)
