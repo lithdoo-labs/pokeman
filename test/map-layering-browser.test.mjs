@@ -770,6 +770,7 @@ async function warmPresentation(page) {
     window.__view.receiveRenderData(viewPayload);
     window.__sprite.receiveRenderData(spritePayload);
   }, { viewPayload: viewData({ depth: 0 }), spritePayload: spriteData(0) });
+  if (await page.evaluate(() => window.__mapLayeringFakeClock === true)) await page.clock.runFor(0);
   await waitPainted(page, "0");
   await page.evaluate(async ({ tilesetId, spriteId }) => {
     const tileset = window.__view._images.get(tilesetId);
@@ -1194,7 +1195,7 @@ test("standing latest state snaps pattern 0 and cancels motion", { timeout: 30_0
 });
 
 test("moving depth is below the tile before the boundary pixel and above at it", { timeout: 30_000 }, async (t) => {
-  const page = await openPage();
+  const page = await openPage({ clock: true });
   t.after(() => page.close());
   await warmPresentation(page);
   await page.evaluate(({ viewPayload, spritePayload }) => {
@@ -1204,23 +1205,15 @@ test("moving depth is below the tile before the boundary pixel and above at it",
     viewPayload: viewData({ depth: 48, cameraMotion: { id: 1, durationMs: 250, fromCameraX: 0, fromCameraY: 0 } }),
     spritePayload: walkingSprite({ y: 1, fromY: 0, screenY: 0, fromScreenY: 0, pattern: 3 }),
   });
-  await waitUntil(page, () => {
-    const z = Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex);
+  await page.clock.runFor(0);
+  assert.deepEqual(await page.evaluate(() => {
+    const spriteZ = Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex);
     const tileZ = document.querySelector("lr-map-view")?.shadowRoot?.querySelector("canvas.tile-layer:not([hidden])")?.style.zIndex;
-    return z > 0 && z < 97 && tileZ === "96";
-  }, "character still below tile depth 48");
-  let belowPixel;
-  const belowDeadline = Date.now() + 200;
-  while (Date.now() < belowDeadline) {
-    const z = await page.evaluate(() => Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex));
-    if (z > 0 && z < 97) {
-      belowPixel = await compositeCenter(page);
-      if (belowPixel[2] === 255 && belowPixel[0] === 0) break;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-  assert.deepEqual(belowPixel, [0, 0, 255, 255]);
-  await waitUntil(page, () => Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex) >= 97, "character reached tile depth 48");
+    return { spriteZ, tileZ };
+  }), { spriteZ: 65, tileZ: "96" });
+  assert.deepEqual(await compositeCenter(page), [0, 0, 255, 255]);
+  await page.clock.runFor(250);
+  assert.ok(await page.evaluate(() => Number(getComputedStyle(document.querySelector("lr-map-sprite")).zIndex) >= 97));
   assert.deepEqual(await compositeCenter(page), [255, 0, 0, 255]);
 });
 
@@ -2355,6 +2348,7 @@ test("stale superseded candidate bitmap is closed and cannot overwrite accepted"
   }, { viewPayload: second, spritePayload: matchingSprite(second) });
   await waitPainted(page, "0", "65");
   await settlePendingImage(page, firstRef, "resolve");
+  await waitUntil(page, () => window.__bitmapCloses >= 1, "stale superseded candidate bitmap close");
   const after = await page.evaluate(() => ({
     images: [...window.__view._images.keys()],
     visualEpoch: window.__view._accepted.view.visualEpoch,
