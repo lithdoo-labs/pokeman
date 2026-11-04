@@ -14,6 +14,8 @@ on:
       - '\[FSDB\]PokeMan/**'
       - "scripts/pwa/**"
       - "scripts/prepare-pwa-content.mjs"
+      - "scripts/ci/run-pokeman.sh"
+      - "doc/pwa-deployment-migration.md"
       - "scripts/sync-map-presentation.mjs"
       - "test/**"
       - "package.json"
@@ -69,30 +71,25 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - name: Verify pinned LoomRealm and test migration adapter
+      - name: Build PokeMan workspace and run product contracts
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:loom-realm)" = "$(git -C loom-realm rev-parse HEAD)"
+          bash scripts/ci/run-pokeman.sh
           node --test scripts/pwa/test/*.test.mjs
-      - name: Install pinned framework dependencies
+      - name: Build generic PWA installation bundle
         shell: bash
         run: |
           set -euo pipefail
-          cd loom-realm
-          npm ci --no-audit --no-fund
-      - name: Stage independent PokeMan sources and build PWA
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/pwa/stage-game.mjs
-          (cd loom-realm && npm run build:staging -w @loomrealm/pwa)
+          node scripts/pwa/build-installation-bundle.mjs --output "$RUNNER_TEMP/pokeman-installation-bundle.json"
+          rm -rf loom-realm/apps/pwa/dist/staging
+          (cd loom-realm && npm run build:bundle -w @loomrealm/pwa -- --bundle "$RUNNER_TEMP/pokeman-installation-bundle.json" --app-id pokeman --base-path /pwa/pokeman/)
           EXPECTED_SHA="$(git rev-parse HEAD)" node scripts/pwa/verify-staging.mjs
       - name: Verify staging in real Chromium
         shell: bash
         run: |
           set -euo pipefail
-          (cd loom-realm && npx playwright install --with-deps chromium)
           export LOOMREALM_CHROMIUM_PATH="$(cd loom-realm && node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath())')"
           test -x "$LOOMREALM_CHROMIUM_PATH"
           (cd loom-realm && node apps/pwa/scripts/run-e2e.mjs staging)
