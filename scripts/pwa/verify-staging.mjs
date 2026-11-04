@@ -57,6 +57,8 @@ export async function verifyStaging({
     assert.equal(entry.contentVersion, "sha256:" + sha256(entry.source), "Executable digest mismatch at index " + index);
     assert.doesNotMatch(entry.source, /\bfrom\s*["']@loomrealm(?:-game)?\//u,
       "Executable must be bundled before it enters the generic payload");
+    assert.doesNotMatch(entry.source, /\bimport\s*\(\s*[^"']/u,
+      "Executable must not retain a runtime-computed dynamic import");
   }
   for (const [index, entry] of bundle.content.entries()) {
     assert.ok(isCanonicalBase64(entry.body), "Non-canonical Content encoding at index " + index);

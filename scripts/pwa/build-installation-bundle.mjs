@@ -63,7 +63,7 @@ function validateFixture(fixture) {
       throw new TypeError("PokeMan executable contentVersion does not match its bundled source");
     }
     if (/\bfrom\s*["']@loomrealm(?:-game)?\//u.test(entry.source)
-      || /\bimport\s*\(\s*["']@loomrealm(?:-game)?\//u.test(entry.source)) {
+      || /\bimport\s*\(\s*[^"']/u.test(entry.source)) {
       throw new TypeError("PokeMan executable is not self-contained: " + entry.logicalModule);
     }
   }
