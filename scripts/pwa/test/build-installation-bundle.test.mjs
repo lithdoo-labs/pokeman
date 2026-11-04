@@ -92,7 +92,7 @@ test("PokeMan adapter rejects an incomplete executable graph", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "pokeman-pwa-incomplete-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, "subsystems"), { recursive: true });
-  for (const name of SUBSYSTEMS.slice(0, -1)) {
+  for (const name of SUBSYSTEMS) {
     await writeFile(join(root, "subsystems", name + ".mjs"), "export default {};");
   }
   const buildExecutable = async ({ entryPoints, outfile }) => {
