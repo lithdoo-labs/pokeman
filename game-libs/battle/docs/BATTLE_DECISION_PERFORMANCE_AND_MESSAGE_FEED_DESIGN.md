@@ -534,9 +534,9 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 3. 将本 Tick 已提交的 messageFacts 按数组顺序发布；Runtime Dispatcher 为每条事实分配 id、sequence 和 elapsedMs。
 4. 如果本 Tick 的 decisionRecords 中包含 consumeOutcome = session_fatal，在 battle.ended 之前发布一次 decision.failed；不暴露内部错误码。
 5. 处理失效请求的内部 abort；不产生 UI 状态清理消息。
-5. 更新现有 World / HUD Presentation。
-6. 处理 terminal / Decision health。
-7. 调用新的 Decision commands。每个玩家可感知的新决策轮次，在真正调用 DecisionPort 前发布 decision.started。
+6. 更新现有 World / HUD Presentation。
+7. 处理 terminal / Decision health。
+8. 调用新的 Decision commands。每个玩家可感知的新决策轮次，在真正调用 DecisionPort 前发布 decision.started。
 
 关键约束：
 
@@ -573,7 +573,7 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 
 - 左侧 World：战斗地图、角色和现有 HUD，占用剩余宽度。
 - 右侧 Activity Panel：宽度为 Battle View 可用内容宽度的 32%，最大 600px。
-- 计算规则：panelWidth = min(availableContentWidth × 0.32, 600px)；worldWidth = availableContentWidth - panelWidth。
+- 计算规则：panelWidth = min(availableContentWidth × 0.32, 600px)；worldWidth = availableContentWidth - panelWidth。availableContentWidth 是扣除 Battle View 外层 padding 与两列间距后的可分配宽度。
 - 不提供抽屉、覆盖层、移动端替代布局或断点切换。
 - 不额外设置固定最小宽度；窄屏下仍保持并排，Panel 内容在自身区域内换行和独立滚动。
 - 宽度以 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不以浏览器窗口外框计算。
