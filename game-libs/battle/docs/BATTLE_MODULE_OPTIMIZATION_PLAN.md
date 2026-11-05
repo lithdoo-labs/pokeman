@@ -2,11 +2,11 @@
 
 > 状态：Proposal / Implementation Plan，尚未冻结为实现契约。
 >
-> 目标分支：\`plan/battle-module-optimization\`
+> 目标分支：`plan/battle-module-optimization`
 >
-> 适用范围：\`game-libs/battle\`，以及 PokeMan Battle Subsystem / Browser Presentation 的必要集成改造。
+> 适用范围：`game-libs/battle`，以及 PokeMan Battle Subsystem / Browser Presentation 的必要集成改造。
 >
-> 基线：从 \`main\` 创建本分支。本文只定义改造计划，不修改 Battle v0 的既有规则、Decision Workflow 或 Replay ABI。
+> 基线：从 `main` 创建本分支。本文只定义改造计划，不修改 Battle v0 的既有规则、Decision Workflow 或 Replay ABI。
 
 ## 1. 背景与问题定义
 
@@ -60,14 +60,14 @@
 
 | 层次 | 现有位置 | 当前职责 / 约束 |
 |---|---|---|
-| Decision Workflow | \`game-libs/battle/src/decision.ts\` | DeepSeek 两阶段请求；Call A 先返回 Strategy Memo，随后 Call B 生成结构化 Plan |
-| Decision Runtime | \`game-libs/battle/src/simulation/runtime.ts\` | 管理 DecisionPort 调用、请求取消、异步 completion inbox、Battle 生命周期 |
-| Simulation Reducer | \`game-libs/battle/src/simulation/tick.ts\` | 同步处理 Tick、验证 Plan、提交移动/技能/伤害事实 |
-| Replay | \`game-libs/battle/src/simulation/replay.ts\` | 记录 Decision completion、Movement、Skill、Damage、Protection 等可确定性事实 |
-| Public Contracts | \`game-libs/battle/src/contracts.ts\` | 定义 DecisionPort、PresentationPort、RenderProjection、BattleRuntime 等跨层契约 |
-| Presentation | \`game-libs/battle/src/presentation.ts\` | 将 RenderProjection 翻译为稳定 RenderDomain 更新 |
-| Browser | \`game-libs/battle/browser/battle.browser.js\`、\`battle.css\` | Battle View、Actor、Effects、HUD 的浏览器呈现 |
-| PokeMan composition | \`subsystems/battle.mjs\` | 组装 Definition、DeepSeek Decision、Presentation、Simulation Runtime，并负责战后结算 |
+| Decision Workflow | `game-libs/battle/src/decision.ts` | DeepSeek 两阶段请求；Call A 先返回 Strategy Memo，随后 Call B 生成结构化 Plan |
+| Decision Runtime | `game-libs/battle/src/simulation/runtime.ts` | 管理 DecisionPort 调用、请求取消、异步 completion inbox、Battle 生命周期 |
+| Simulation Reducer | `game-libs/battle/src/simulation/tick.ts` | 同步处理 Tick、验证 Plan、提交移动/技能/伤害事实 |
+| Replay | `game-libs/battle/src/simulation/replay.ts` | 记录 Decision completion、Movement、Skill、Damage、Protection 等可确定性事实 |
+| Public Contracts | `game-libs/battle/src/contracts.ts` | 定义 DecisionPort、PresentationPort、RenderProjection、BattleRuntime 等跨层契约 |
+| Presentation | `game-libs/battle/src/presentation.ts` | 将 RenderProjection 翻译为稳定 RenderDomain 更新 |
+| Browser | `game-libs/battle/browser/battle.browser.js`、`battle.css` | Battle View、Actor、Effects、HUD 的浏览器呈现 |
+| PokeMan composition | `subsystems/battle.mjs` | 组装 Definition、DeepSeek Decision、Presentation、Simulation Runtime，并负责战后结算 |
 
 ### 3.1 Call A 的当前行为
 
@@ -87,23 +87,23 @@ DecisionRequest
 
 | 配置 | 当前基线 |
 |---|---|
-| Model | \`deepseek-flash\` |
-| Reasoning effort | \`high\` |
+| Model | `deepseek-flash` |
+| Reasoning effort | `high` |
 | Output format | 普通文本 |
-| Max output tokens | \`65536\` |
-| Stream | \`false\` |
-| Provider timeout | \`60000 ms\` |
+| Max output tokens | `65536` |
+| Stream | `false` |
+| Provider timeout | `60000 ms` |
 | 请求关系 | Call A 完成后才执行 Call B |
 
-当前 v0 Decision 设计文档还记录了一项重要兼容性事实：曾尝试在 \`reasoning.effort=high\` 时把 \`max_output_tokens\` 降到 \`8192\`，但请求可能在产生任何 visible strategy output 前就因 reasoning token 消耗而终止。因此，不能把“65536 很大”直接等同于“每次都生成了 65536 tokens”，也不能在没有 usage 数据时直接把上限砍到 8192。
+当前 v0 Decision 设计文档还记录了一项重要兼容性事实：曾尝试在 `reasoning.effort=high` 时把 `max_output_tokens` 降到 `8192`，但请求可能在产生任何 visible strategy output 前就因 reasoning token 消耗而终止。因此，不能把“65536 很大”直接等同于“每次都生成了 65536 tokens”，也不能在没有 usage 数据时直接把上限砍到 8192。
 
 本轮调参应遵循：
 
 - 先固定 Token 上限，只比较 reasoning effort。
-- \`high\` 作为当前对照组。
-- \`low\` 作为第一候选组。
-- \`none\` 仅在 Provider 当前模型能力确认支持且策略质量测试通过时纳入候选。
-- 不把 \`medium\` 当作低成本档位；当前 Provider 兼容说明指出其映射行为不能达到降低 reasoning 的目的。
+- `high` 作为当前对照组。
+- `low` 作为第一候选组。
+- `none` 仅在 Provider 当前模型能力确认支持且策略质量测试通过时纳入候选。
+- 不把 `medium` 当作低成本档位；当前 Provider 兼容说明指出其映射行为不能达到降低 reasoning 的目的。
 - reasoning effort 确认后，再根据真实 reasoning / output usage 调整 Token 上限。
 - Call B 保持不变，以免实验同时改变两个变量。
 
@@ -111,9 +111,9 @@ DecisionRequest
 
 - Battle Tick 固定为 200 ms；Simulation 使用自己的 Clock 和 scheduler 推进。
 - Decision Promise completion 只进入 inbox，在后续 Tick 边界被消费；Promise callback 不直接修改权威 Battle State。
-- Runtime 已有 \`#invokeDecision()\`、\`onPause()\`、\`onTransition()\` 等生命周期入口，可以作为 Activity 观察事件的来源。
+- Runtime 已有 `#invokeDecision()`、`onPause()`、`onTransition()` 等生命周期入口，可以作为 Activity 观察事件的来源。
 - Tick 输出已包含 Replay Tick facts 和 Decision records。Replay facts 已覆盖移动开始/失败/中断、技能结算、伤害和保护等事实。
-- \`RenderProjection\` 当前只表达 Scene/Actor/Effect 视觉事实，不包含 LLM completion timing。
+- `RenderProjection` 当前只表达 Scene/Actor/Effect 视觉事实，不包含 LLM completion timing。
 - 现有 Presentation 设计明确排除 Decision inbox / LLM completion timing；不应把 Decision latency 塞进 RenderProjection。
 - 当前 Presentation 使用稳定 Render Tree：正常战斗变化通过已有节点的 data update 表达，不应每产生一条消息就创建一个 RenderNode。
 - 当前 Battle View 主要包含 world 和 HUD 区域；右侧 Activity Panel 需要明确扩展布局契约，而不是临时叠加一个 DOM 旁路。
@@ -218,7 +218,7 @@ type DecisionTimingMetric = {
 
 ### 4.6 Fast Profile 的启用门槛
 
-通过实测选出候选配置后，再定义正式 profile，例如 \`responsive\` 与 \`quality\`。profile 名称和默认值在实现阶段确认，不在本计划中预先冻结。
+通过实测选出候选配置后，再定义正式 profile，例如 `responsive` 与 `quality`。profile 名称和默认值在实现阶段确认，不在本计划中预先冻结。
 
 建议的初始验收目标：
 
@@ -276,7 +276,7 @@ type DecisionTimingMetric = {
 
 ### 5.3 事件模型
 
-建议新增独立的 Battle Activity Contract，采用 discriminated union，不使用无约束的 \`Record<string, unknown>\` 作为长期公共契约。
+建议新增独立的 Battle Activity Contract，采用 discriminated union，不使用无约束的 `Record<string, unknown>` 作为长期公共契约。
 
 初步 envelope：
 
@@ -351,11 +351,11 @@ type BattleActivityEvent =
 
 这是用于讨论的类型草案。实现时应以最小必要字段为准：
 
-- \`eventId\` 用于去重；同一事实重复提交不能显示两次。
-- \`sequence\` 在单场 Battle 内单调递增，决定消息排序。
-- \`tick\` 表示游戏逻辑时间；Decision 开始等 Tick 外事件可为 null 或最近 committed Tick，最终语义需要在契约评审时统一。
-- \`requestId\` 用于关联 thinking 与 decision completion，不能只按 actorId 关联，因为同一 Actor 可能先失败再发起 correction。
-- \`reason\` / \`code\` 只能使用面向 UI 的安全错误分类，不包含原始 Provider 响应或 Prompt。
+- `eventId` 用于去重；同一事实重复提交不能显示两次。
+- `sequence` 在单场 Battle 内单调递增，决定消息排序。
+- `tick` 表示游戏逻辑时间；Decision 开始等 Tick 外事件可为 null 或最近 committed Tick，最终语义需要在契约评审时统一。
+- `requestId` 用于关联 thinking 与 decision completion，不能只按 actorId 关联，因为同一 Actor 可能先失败再发起 correction。
+- `reason` / `code` 只能使用面向 UI 的安全错误分类，不包含原始 Provider 响应或 Prompt。
 - 不把 wall-clock latency 写入 Replay authority；UI 可以在收到 thinking.started 后本地显示经过时间。
 
 ### 5.4 事件发布 API 与架构边界
@@ -389,12 +389,12 @@ right-side Activity Panel
 
 职责边界：
 
-- Runtime 在 \`#invokeDecision()\` 前发布 \`decision.started\`。
+- Runtime 在 `#invokeDecision()` 前发布 `decision.started`。
 - Tick reducer 只产生本 Tick 已提交的 Activity facts；Runtime 在同步 reducer 结束后统一分配 sequence 并通知 observers。
 - Activity observer 不得在 reducer 调用栈内执行异步操作，也不得回写 Simulation。
 - listener 抛错必须被隔离；单个 UI listener 失败不能让 Runtime reject 或改变 BattleResult。
 - Activity adapter 负责有限缓存、格式化和 UI 更新；它不负责判定技能是否命中或 Plan 是否有效。
-- 不将 Activity events 添加到当前 \`RenderProjection\`。Decision timing 与 gameplay projection 继续保持分离。
+- 不将 Activity events 添加到当前 `RenderProjection`。Decision timing 与 gameplay projection 继续保持分离。
 - 不为每条消息创建 RenderNode；Activity Panel 应使用一个稳定节点和一个有界 collection payload。
 
 需要评审的实现选择：Activity Panel 与现有 Battle Presentation 共用一个 RenderDomain，但事件接口保持独立；不要为了共享 RenderDomain 而把 Activity 语义塞入 PresentationPort / RenderProjection 的既有 v0 ABI。
@@ -408,10 +408,10 @@ Feed 至少包含两部分：
 
 状态转换：
 
-- \`decision.started\`：创建 active entry，展示“角色 A 正在分析战局……”。
-- \`decision.plan_accepted\`：关闭对应 requestId 的 active entry，追加已接受行动摘要。
-- \`decision.plan_rejected\`：关闭旧 request entry，追加“行动方案未通过规则校验”；如果 Runtime 发起 correction，新 request 的 started 事件会建立新的 active entry。
-- \`decision.failed\`：关闭对应 active entry，展示简洁错误状态；具体是否暂停由既有 Decision failure policy 决定，Feed 不做决策。
+- `decision.started`：创建 active entry，展示“角色 A 正在分析战局……”。
+- `decision.plan_accepted`：关闭对应 requestId 的 active entry，追加已接受行动摘要。
+- `decision.plan_rejected`：关闭旧 request entry，追加“行动方案未通过规则校验”；如果 Runtime 发起 correction，新 request 的 started 事件会建立新的 active entry。
+- `decision.failed`：关闭对应 active entry，展示简洁错误状态；具体是否暂停由既有 Decision failure policy 决定，Feed 不做决策。
 - Battle pause：停止 active entry 的 elapsed display 或标记为暂停；不能继续显示成正在正常推进。
 - Battle resume：对仍有效的 request 恢复等待展示。
 - Battle terminal / close：清理 active entries，保留最终消息直到 Scene 被关闭。
@@ -444,34 +444,34 @@ UI 行为：
 
 文案不要夸大事实：
 
-- \`decision.plan_accepted\` 只能表达“决定 / 计划”，不能写“成功攻击”。
-- \`skill.started\` 表达“开始施放”，不能写“命中”。
-- \`skill.resolved\` 的 miss / immune / invalid 必须与 hit 区分。
-- \`damage.applied\` 显示 Simulation 最终计算的 damage / hpAfter，不自行计算。
-- \`actor.defeated\` 每个 Actor 每场 Battle 只出现一次。
+- `decision.plan_accepted` 只能表达“决定 / 计划”，不能写“成功攻击”。
+- `skill.started` 表达“开始施放”，不能写“命中”。
+- `skill.resolved` 的 miss / immune / invalid 必须与 hit 区分。
+- `damage.applied` 显示 Simulation 最终计算的 damage / hpAfter，不自行计算。
+- `actor.defeated` 每个 Actor 每场 Battle 只出现一次。
 
 ### 5.7 Browser 布局与稳定 Render Tree
 
 涉及文件预计包括：
 
-- \`game-libs/battle/browser/battle.browser.js\`
-- \`game-libs/battle/browser/battle.css\`
-- \`game-libs/battle/src/presentation.ts\`
-- \`game-libs/battle/src/contracts.ts\`
-- \`game-libs/battle/docs/BATTLE_V0_PRESENTATION.md\` 的后续版本化说明或新增 Activity Presentation 设计文档
+- `game-libs/battle/browser/battle.browser.js`
+- `game-libs/battle/browser/battle.css`
+- `game-libs/battle/src/presentation.ts`
+- `game-libs/battle/src/contracts.ts`
+- `game-libs/battle/docs/BATTLE_V0_PRESENTATION.md` 的后续版本化说明或新增 Activity Presentation 设计文档
 
 建议为 Activity Panel 增加一个固定 visual slot / RenderNode，例如：
 
-- key：\`battle:activity\`
-- tag：\`lr-battle-activity\`
-- view slot：\`activity\`
+- key：`battle:activity`
+- tag：`lr-battle-activity`
+- view slot：`activity`
 
 最终名称需在实现前核对现有 RenderNode naming convention，并统一写入契约。
 
 要求：
 
 - 在初始 RenderDomain tree 创建时建立 Activity 节点。
-- 后续只更新该节点的 data，不增删节点，不调用 \`domain.replace()\`。
+- 后续只更新该节点的 data，不增删节点，不调用 `domain.replace()`。
 - Activity data 只包含最近有限条消息和 active decisions；不把整个 Replay 或 DecisionRequest 塞进 Browser payload。
 - 对 Browser payload 设置明确容量上限，避免长战斗导致 RenderData 无限增长。
 - Panel 更新与 World / HUD 更新解耦；Activity 更新失败只产生 diagnostic，不得触发 Presentation fatal 或 Battle failure。
@@ -558,7 +558,7 @@ UI 行为：
 交付物：
 
 - Typed BattleActivityEvent contract。
-- Runtime observer API（如 \`onActivity\`）。
+- Runtime observer API（如 `onActivity`）。
 - Decision started / accepted / rejected / failed 事件。
 - Simulation movement / skill / damage / defeat 事件。
 - sequence、eventId、requestId 关联与 listener failure isolation。
@@ -618,7 +618,7 @@ UI 行为：
 
 ### 8.1 Decision 单元与 Provider 测试
 
-目标文件：\`game-libs/battle/test/decision.test.mjs\`
+目标文件：`game-libs/battle/test/decision.test.mjs`
 
 - reasoning profile 正确写入 Call A request body。
 - A0/A1/A2 使用相同 Prompt 和 Observation。
@@ -632,7 +632,7 @@ UI 行为：
 
 ### 8.2 Simulation Activity 测试
 
-建议新增 \`game-libs/battle/test/activity.test.mjs\`，或按现有测试组织合并到 simulation 测试。
+建议新增 `game-libs/battle/test/activity.test.mjs`，或按现有测试组织合并到 simulation 测试。
 
 - Decision invocation 前立即发布 thinking.started。
 - Plan 只有在 validate + accept 后才发布 plan_accepted。
@@ -649,7 +649,7 @@ UI 行为：
 
 ### 8.3 Browser / Presentation 测试
 
-目标文件：\`game-libs/battle/test/presentation.test.mjs\`、\`browser-e2e.test.mjs\`
+目标文件：`game-libs/battle/test/presentation.test.mjs`、`browser-e2e.test.mjs`
 
 - 初始 RenderDomain 一次性创建 Activity 节点。
 - 新消息只更新已有节点 data。
@@ -695,20 +695,20 @@ UI 行为：
 
 | 文件 | 预计改动 |
 |---|---|
-| \`game-libs/battle/src/decision.ts\` | Call A profile、阶段耗时与 usage 采集；Call B 保持原职责 |
-| \`game-libs/battle/src/contracts.ts\` | BattleActivityEvent 类型与 Runtime observer surface |
-| \`game-libs/battle/src/simulation/runtime.ts\` | Decision lifecycle 发布、Tick Activity dispatch、observer isolation |
-| \`game-libs/battle/src/simulation/tick.ts\` | 生成与 committed reducer facts 对应的活动事件 |
-| \`game-libs/battle/src/simulation/replay.ts\` | 原则上不改 Replay v1 schema；如需改变必须单独提出 version amendment |
-| \`game-libs/battle/src/presentation.ts\` | 固定 Activity visual node 的初始化和更新适配 |
-| \`game-libs/battle/browser/battle.browser.js\` | Activity custom element / message list / active decisions |
-| \`game-libs/battle/browser/battle.css\` | 右侧布局、窄屏 Drawer、消息样式 |
-| \`game-libs/battle/test/decision.test.mjs\` | profile、timing、usage、failure / abort tests |
-| \`game-libs/battle/test/simulation.test.mjs\` 或新增 activity test | 事件时机、排序、去重、observer isolation |
-| \`game-libs/battle/test/presentation.test.mjs\` | stable node / feed update / failure isolation |
-| \`game-libs/battle/test/browser-e2e.test.mjs\` | Panel、scroll、responsive、lifecycle E2E |
-| \`subsystems/battle.mjs\` | 订阅 Runtime Activity 并接入 Activity Presentation adapter |
-| \`game-libs/battle/docs/\` | 新增版本化 Activity / Decision profile 设计与 qualification 文档 |
+| `game-libs/battle/src/decision.ts` | Call A profile、阶段耗时与 usage 采集；Call B 保持原职责 |
+| `game-libs/battle/src/contracts.ts` | BattleActivityEvent 类型与 Runtime observer surface |
+| `game-libs/battle/src/simulation/runtime.ts` | Decision lifecycle 发布、Tick Activity dispatch、observer isolation |
+| `game-libs/battle/src/simulation/tick.ts` | 生成与 committed reducer facts 对应的活动事件 |
+| `game-libs/battle/src/simulation/replay.ts` | 原则上不改 Replay v1 schema；如需改变必须单独提出 version amendment |
+| `game-libs/battle/src/presentation.ts` | 固定 Activity visual node 的初始化和更新适配 |
+| `game-libs/battle/browser/battle.browser.js` | Activity custom element / message list / active decisions |
+| `game-libs/battle/browser/battle.css` | 右侧布局、窄屏 Drawer、消息样式 |
+| `game-libs/battle/test/decision.test.mjs` | profile、timing、usage、failure / abort tests |
+| `game-libs/battle/test/simulation.test.mjs` 或新增 activity test | 事件时机、排序、去重、observer isolation |
+| `game-libs/battle/test/presentation.test.mjs` | stable node / feed update / failure isolation |
+| `game-libs/battle/test/browser-e2e.test.mjs` | Panel、scroll、responsive、lifecycle E2E |
+| `subsystems/battle.mjs` | 订阅 Runtime Activity 并接入 Activity Presentation adapter |
+| `game-libs/battle/docs/` | 新增版本化 Activity / Decision profile 设计与 qualification 文档 |
 
 以上是预计影响面，不表示所有文件都必须修改。实现时应优先复用现有模块，不为满足清单而制造无必要的抽象。
 
