@@ -70,15 +70,14 @@ DecisionFailure
 在 concrete `DeepSeekDecision` 上增加一个**可选的第二构造参数**，仅用于接收过程消息：
 
 ```ts
-new DeepSeekDecision(
-  { transport },
-  (request, message) => {
-    // non-blocking presentation notification
-  },
-)
+const processMessageObserver = (request: DecisionRequest, message: string): void => {
+  // non-blocking presentation notification
+};
+
+new DeepSeekDecision({ transport }, processMessageObserver)
 ```
 
-observer 的概念签名为：
+第二参数命名为 `processMessageObserver`；observer 的概念签名为：
 
 ```ts
 (request: DecisionRequest, message: string) => void
