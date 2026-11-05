@@ -13,7 +13,7 @@
 本轮改造解决两个独立问题：
 
 1. **AI 决策等待过长。** 通过测量和调优 DeepSeek Decision 的 Call A，改善玩家等待角色作出下一步行动的时间；保留性能与 Plan 质量测试记录，据此选择合适的配置，同时维持现有游戏规则与 Plan 校验正确性。
-2. **战斗过程缺少即时反馈。** 战斗中发生值得玩家了解的事情时，立即产生一条消息，展示在战斗画面右侧。消息按发生顺序记录，最新消息显示在最上面。
+2. **战斗过程缺少即时反馈。** Battle 事实事件与 Call A 已产生的可见策略文本统一进入右侧 Battle Message Feed；每条消息使用角色名称标注与本地字符串模板，按发生顺序记录、最新置顶。
 
 这两个目标相互独立：
 
@@ -30,15 +30,15 @@ Battle Message Feed 是一份**战斗过程中发生事件的只读、追加式�
 
 发生一件值得玩家了解的事情，就产生一条独立消息。消息一经产生便成为历史记录，不因后续战斗状态变化而被修改、关闭或删除。
 
-例如：
+例如，同一个列表中可连续出现：
 
-1. 角色 A 开始分析战场情报。
-2. 角色 B 发动雷电术。
-3. 角色 A 受到 15 点伤害。
-4. 角色 A 根据新的战场情况，开始重新思考下一步行动。
-5. 角色 A 决定向目标移动。
+1. 【小红】开始分析局势……
+2. 【小明】发动雷电术。
+3. 【小红】受到 15 点伤害。
+4. 【小红】思考结束：当前距离敌人三格，应先靠近再进攻。
+5. 【小红】决定向敌人移动。
 
-这些消息是五件先后发生的事情，不是一个持续更新的“角色 A 正在思考”状态。
+每条消息都是独立的追加式记录，不是持续更新的“角色正在思考”状态。第 4 条中的“思考结束”仅表示 **Call A 已完成并提供可见 Strategy Memo**；Call B 还可能正在处理，只有 Simulation 之后接受 Plan 才能产生第 5 条的 decision.accepted，AI 文本不能冒充已执行的动作或权威战斗事实。不同 Actor 的消息按真实发布顺序自然交错，不人为拼成连续的思考卡片。
 
 ### 2.2 明确禁止的设计
 
@@ -78,7 +78,7 @@ Runtime 在每次真正调用 DecisionPort 时，都必须知道这次请求由�
 
 decision.started 表示“系统开始为角色处理一个玩家可感知的决策轮次”，不表示模型的内部推理过程，也不承诺该轮次一定成功。
 
-内部 correction 不创建第二张思考卡片，也不修改第一条消息。如果修正过程最终导致玩家可感知的失败，才按失败规则发布独立事件。这样消息流保留真实发生的关键事情，但不会变成 Provider 请求日志或重复通知。
+内部 correction 不创建第二张思考卡片，也不修改第一条消息；第一版同样不为 prefetch、correction、自动重试发布可见 Strategy Memo，以免出现没有“开始分析”的孤立文本。如果修正过程最终导致玩家可感知的失败，才按失败规则发布独立事件。
 
 ## 3. 玩家体验与界面行为
 
@@ -120,14 +120,16 @@ Battle View
 └── 下半部分（现有区域，保持不变）
 ```
 
-几何尺寸的数据流必须明确且单一：
+几何尺寸由**组件实际测量并通过现有双向消息机制上报**，而不是子系统自行推算：
 
-1. PokeMan composition / Battle View 外层布局负责取得上半部分的实际 content rect。
-2. 外层布局根据 upperContentWidth 计算右上 Panel 宽度与左上地图剩余宽度，并确定两者共同的可用高度。
-3. 左上地图容器的实际 content rect（mapViewport.width / mapViewport.height）是 Battle Presentation 的唯一 viewport 尺寸来源。
-4. 当前 BattlePresentationBuilder 通过 `scope.viewport.current` 和 `scope.viewport.subscribe()` 获取初始尺寸及 resize 更新；接入时必须确保该 viewport source 表示左上地图容器，而不是整个 Battle View、上半部分未扣除 Panel 前的区域或浏览器窗口。若现有 `scope.viewport` 仍代表全局 viewport，应在 PokeMan composition 与 Battle Presentation 之间提供 map-scoped viewport adapter / port，不得让 Battle Presentation 猜测或自行从全局宽度减去 Panel。
-5. `calculateTileViewportLayout`、Camera、scale、tile projection，以及传给 `lr-battle-view` 的 `viewportWidth / viewportHeight`，全部使用同一份 mapViewport 尺寸。容器 resize 时，外层布局更新 map-scoped viewport，Presentation 再按该尺寸重新计算。
-6. Activity Panel 不进入地图的 RenderProjection / RenderDomain；下半部分继续使用原有布局与尺寸来源。
+1. PokeMan 布局层按 `panelWidth = min(upperContentWidth × 0.32, 600px)` 决定右上 Panel 与左上地图容器的 CSS 几何尺寸；下半部分保持不变。左上地图容器是唯一尺寸观测源，可以是提前建立的布局壳 / 地图容器组件；不得等 BattlePresentation 的首次 RenderProjection 才创建可测量容器。
+2. 地图容器组件用 `ResizeObserver` 测量自身实际 **content box**，首次连接且已具备正整数 CSS 逻辑宽高时上报一次；后续尺寸变化时上报。忽略 0 / 非法值、相同尺寸的重复通知；不根据上次 RenderData 的 viewport 字段反向构造测量值。
+3. **组件 → 子系统** 复用 LoomRealm Web Presentation v3：`context.emitCustomEvent("battle.viewport.changed", { width, height }, { broadcast: "top-frame", channel: "pokeman.battle.viewport" })`。子系统在 Battle Frame 已就绪时先注册 `scope.presentationEvents.createListener({ frame, channels: ["pokeman.battle.viewport"] })`，并验证来源确属本场 Battle 的地图容器、尺寸合法、Frame 未结束；不把此物理环境事件当成玩家 Input。
+4. **子系统 → 组件** 复用 `RenderDomain.emit({ targetKey: "battle:layout", name: "battle.viewport.request", data: {} })`，由地图布局组件的 `receiveRenderEvent` 接收后重新测量并上报。请求仅表示“请重新上报”，不是同步查询或必达 RPC；当前 Live RenderNode 的实际 key 可与 `battle:layout` 对齐，不能把请求投给尚未创建的节点。
+5. PokeMan composition 把最后一份有效上报缓存到**仅供本场 Battle Presentation 使用**的 map-scoped Viewport adapter，其 `current / subscribe` 满足现有 Viewport 契约。首次有效地图尺寸到达后再开始依赖它的 BattlePresentation 初始化；如果布局容器依赖 BattlePresentation 的首次渲染才能存在，会发生初始化死锁，必须先建立独立可测量的布局壳。
+6. `calculateTileViewportLayout`、Camera、scale、tile projection 与 `lr-battle-view.viewportWidth / viewportHeight` 共用此地图尺寸。当前 `lr-battle-view` CSS 的 `100vw/100vh` 和 `receiveRenderData()` 写入的自身 inline width/height 不得覆盖由外层布局拥有的地图容器尺寸；RenderData 只用于内部绘制。
+7. `top-frame` 的反向事件具有 currentness/Frame gating 和 transient/no-replay 语义：子 Frame（如暂停 Message）位于栈顶时的尺寸通知可能丢失。Battle 恢复 Top Frame 后主动发出一次 `battle.viewport.request` 恢复最新值；Frame/RenderNode 已关闭时静默丢弃迟到通知，取消订阅与观察器。不轮询、不假造尺寸，也不以反向通知修改 Battle gameplay authority。
+8. Activity Panel 与地图 RenderProjection 分离；消息面板的具体 DOM 容器不能影响 map-scoped 真实 content box 的观测。
 
 分辨率范围沿用 PokeMan 现有的游戏支持范围和项目测试基线。本方案不自行指定新的最小 / 最大分辨率或宽高比；实现与验收应覆盖现有支持范围内的代表性尺寸，不能把“所有可能的 viewport 尺寸”当作要求。若仓库没有集中记录该范围，应沿用当前游戏实际运行与 QA 使用的 viewport 预设，不由 Issue Agent 擅自扩展支持承诺。
 
@@ -152,30 +154,39 @@ Battle View
 - Runtime 发布 battle.ended 时可以向仍存在的 Feed 追加最终消息；不为该消息延长战斗或界面生命周期，也不承诺关闭后仍可查看。
 - Battle 关闭（Runtime.close / Battle Frame 清理）时取消订阅并清空 Feed，释放相关 DOM 资源；关闭后不保留消息历史，不另设战后消息阅读阶段。
 
-### 3.4 消息表现
+### 3.4 统一角色标签与字符串模板
 
-每条消息至少包含：
+**所有战斗事实、生命周期消息和 Call A 可见策略文本只进入同一个 Activity Panel**，按统一的 sequence 排序；不再存在第二个 AI 临时提示区。
 
-- 角色名称或系统来源。
-- 简短事件描述。
-- 事件类型对应的轻量视觉区分。
-- 发生时间或 Tick 信息（视 UI 密度决定）。
+消息显示形态为 `【角色名称】描述文字`，无 Actor 的系统消息使用 `【系统】`。Actor 显示名取已有 Battle / Character 的可信映射，未知 ID 安全回退；不把模型输出作为角色名称。统一用本地字符串模板生成前后缀：
 
-新消息使用轻量淡入，不播放影响战斗节奏的长动画。
+| 事件 | 本地描述模板 |
+|---|---|
+| decision.started | `【{actor}】开始分析局势……` |
+| decision.analysis_completed | `【{actor}】思考结束：{visibleStrategyText}` |
+| decision.accepted | `【{actor}】决定{planSummary}。` |
+| movement.started / completed / interrupted / failed | `【{actor}】开始移动 / 到达目标 / 移动被打断 / 无法移动。` |
+| skill.started / resolved | `【{actor}】发动{skillName}。` / `【{actor}】的{skillName}{resultText}。` |
+| damage.applied / actor.defeated | `【{actor}】受到{amount}点伤害。` / `【{actor}】被击倒。` |
+| decision.failed | `【{actor}】暂时无法制定行动方案。` |
+| battle.paused / resumed / ended | `【系统】战斗暂停 / 战斗继续 / 战斗结束：{resultText}。` |
 
-文案由本地模板根据结构化事实生成，不让 LLM 生成战斗播报。
+只有 `decision.analysis_completed` 的描述主体包含**已生成的 Call A visible strategyMemo**；其他模板严格依据已提交的 Runtime / Simulation 事实，绝不让 LLM 编写伤害、动作结果或战斗结论。Call A 文本不含 hidden reasoning；原始 strategyMemo 不改写地继续供 Call B 使用，UI 可安全限制展示长度、折叠或换行，但必须按纯文本处理，不解释为 HTML/Markdown，也不得展示密钥、Provider 原始错误或请求内容。推荐单条 AI 文本显示最多约 1200 个 Unicode 字符，可展开查看本场内的更多可见文本（如果实现展开，仍受有界 Feed 内存约束）。
+
+每条消息可使用轻量事件类型区分与 Tick / 显示时间；新消息轻量淡入，遵守 reduced-motion，不播放影响战斗节奏的长动画。
 
 ## 4. 消息事件模型
 
 
 ### 4.1 事件来源
 
-只允许两个权威来源，不能由 Browser 根据状态变化自行猜测事件：
+**游戏事实仍只有两个权威来源**；额外允许一种明确标注为非权威的已完成 Call A 可见文本，三者统一显示，不得由 Browser 猜测事实：
 
-| 来源 | 负责发布的事实 |
-|---|---|
-| Battle Runtime | 玩家可感知的决策轮次开始、最终决策失败、Battle 暂停 / 恢复 / 结束 |
-| Battle Simulation | Plan 被接受、移动意图开始 / 完成 / 中断 / 失败、技能开始 / 结算、伤害、击倒等已提交的战斗事实 |
+| 来源 | 提供的信息 | 权威性 |
+|---|---|---|
+| Battle Runtime | 玩家可感知的决策轮次开始、最终决策失败、Battle 暂停 / 恢复 / 结束 | Runtime 权威 |
+| Battle Simulation | Plan 被接受、移动意图、技能、伤害、击倒等已提交的战斗事实 | Simulation 权威 |
+| concrete DeepSeekDecision 的 Call A observer | 已产生的 visible `strategyMemo`，对应一次仍有效的玩家可感知请求 | **纯叙事文本，不是 Plan / gameplay 事实** |
 
 边界规则：
 
@@ -183,7 +194,7 @@ Battle View
 - decision.accepted 属于 Simulation，因为只有 Simulation 完成 Plan 校验并调用 acceptPlan 后，才能确认方案已被接受。
 - 移动、技能、伤害和击倒属于 Simulation；Runtime 和 UI 不得通过 Snapshot / RenderProjection diff 推断这些事实。
 - decision.failed 和 Battle 生命周期消息由 Runtime 根据已经消费的 Decision 结果或真实生命周期转换发布。
-- Runtime 负责把两类来源统一排序并发布，但不得篡改 Simulation 事实。
+- Runtime 统一筛选、排序并发布两类权威事件和经过有效请求校验的可见策略文本，不得篡改 Simulation 事实，不得让策略文本成为 Plan 已接受的证据。
 
 
 ### 4.2 第一版消息类型
@@ -192,7 +203,8 @@ Battle View
 
 | 事件类型 | 权威来源 | 触发事实 | 消息示例 |
 |---|---|---|---|
-| decision.started | Runtime | 玩家可感知的决策轮次真正开始 | 角色 A 开始分析战场情报…… |
+| decision.started | Runtime | 玩家可感知的决策轮次真正开始 | 【小红】开始分析局势…… |
+| decision.analysis_completed | Call A visible output，经 Runtime 校验 | 对应的仍有效请求完成 Call A 并得到非空可见策略文本 | 【小红】思考结束：当前距离敌人三格，应先靠近再进攻。 |
 | decision.accepted | Simulation | Simulation 验证并接受完整 Plan | 角色 A 决定前往高地，并使用火焰斩攻击角色 B |
 | movement.started | Simulation | 一次移动意图的第一段移动正式开始 | 角色 A 开始向目标位置移动 |
 | movement.completed | Simulation | 移动意图的最终目的地已抵达 | 角色 A 已抵达目标位置 |
@@ -211,12 +223,13 @@ Battle View
 - decision.accepted 必须如实表达 Simulation 已接受的完整 Plan，并遵守冻结的 v0 校验规则：移动路径与技能可共存；显式 turn 与非空 path 不能共存（turn_with_path）；path 为空时可包含 turn 与 skill。不得为了消息展示放宽 Plan 校验。
 - movement.started / completed / interrupted 描述一次完整移动意图，不描述每个寻路格或每个 Tick 的内部移动片段。
 - battle.ended 必须携带最终 BattleResult，以区分胜利、失败、平局式同时击倒、取消和系统失败。
-- 第一版不展示每个 Tick、寻路内部步骤、每次数值变化或 Provider 内部调用，避免消息刷屏。
+- 第一版不展示每个 Tick、寻路内部步骤、普通 Provider 调用日志，避免消息刷屏；Call A 的可见策略文本是特意开放的一条非权威叙事输出，并非 hidden reasoning 或对每个 HTTP 请求的追踪。
 
 
 ### 4.3 事件触发规则
 
-- decision.started：Runtime 在真正调用 DecisionPort 前发布；仅对第 2.3 节列出的玩家可感知触发原因发布。Call A / Call B 不分别播报；prefetch、correction 和同一轮次内的自动重试不重复播报。
+- decision.started：Runtime 在真正调用 DecisionPort 前发布；仅对第 2.3 节列出的玩家可感知触发原因发布。prefetch、correction 和同一轮次内的自动重试不重复播报“开始分析”；Call A / Call B 不各自创建决策状态卡。
+- decision.analysis_completed：concrete DeepSeekDecision 在 Call A 成功取得非空 visible strategyMemo 后，以可选 observer 上报一次；Runtime 必须核对 requestId、generation、仍活跃的请求和玩家可感知的 trigger reason，拒绝 abort、stale、prefetch、correction、retry 及已结束 Battle 的输出。此消息只代表分析完成，不代表 Call B、Plan 接受或 Action 成功。
 - decision.accepted：必须在 Simulation 完成 Plan 校验并调用 acceptPlan 后发布。模型返回文本本身不代表 Plan 已接受。
 - movement.started：一个已接受 Plan 的 path 第一次真正开始执行时发布一次。移动意图 ID 使用该 AcceptedPlan 的 planId，不为每个移动片段创建新的玩家可见意图。
 - movement.completed：只有最终路径片段的 move_complete 事件成功提交、Actor 到达 Plan.path 的最终目的地后发布。中间格抵达不发布。
@@ -258,15 +271,15 @@ Battle View
 |---|---|
 | stale request 被取消 | 不显示，不修改旧消息 |
 | AbortSignal 取消 | 不显示，不修改旧消息 |
-| prefetch_after_materialize | 不显示，属于后台提前准备 |
-| Plan 被拒绝并自动 correction | 不重复显示“开始思考”；内部修正本身不单独播报 |
+| prefetch_after_materialize | 不显示开始思考或 AI 策略文本，属于后台提前准备 |
+| Plan 被拒绝并自动 correction | 不重复显示“开始思考”，也不显示这次内部 correction 的策略文本；不修改此前历史 |
 | 普通 attempt failure 后自动重试 | 不显示 |
 | 最终 session_fatal 决策失败并导致 Battle 终止 | 在 battle.ended 前发布一次 decision.failed，使用安全、简短的玩家文案 |
 | Battle 因决策故障进入暂停 | 发布 battle.paused；不暴露 Provider 内部错误 |
 | Battle 结束 | 发布一次 battle.ended，并携带 BattleResult |
 | Presentation / Panel 自身错误 | 不生成伪造的战斗消息；通过隔离的错误处理记录 |
 
-- 不显示 Provider 原始错误、HTTP body、Prompt、API Key 或 hidden reasoning。
+- 不显示 Provider 原始错误、HTTP body、Prompt、API Key 或 hidden reasoning。只将 Call A 明确可见的 strategyMemo 作为非权威玩家叙事文本；用于 Call B 的原文不改变，UI 只作安全纯文本展示。
 - 不把 requestId、generation、AbortController 或 active request 状态暴露给 Feed。
 - 如果未来产品决定向玩家展示“行动方案需要调整”，应作为明确的玩家可感知事件单独设计；不能把每次内部 correction 自动转换成消息。
 
@@ -275,41 +288,31 @@ Battle View
 ### 5.1 总体数据流
 
 ~~~text
-Battle Runtime
-  ├─ Decision 请求发起
-  └─ Battle 生命周期事件
-           │
-           ├─────────────────────┐
-           │                     │
-Battle Simulation               │
-  └─ committed message facts    │
-           │                     │
-           └──────────┬──────────┘
-                      ▼
-              Battle Message Event
-                      │
-                      ▼
-              Runtime Message Dispatcher
-                      │
-                      ▼
-              PokeMan Message Feed
-                      │
-                      ▼
-              Message Formatter
-                      │
-                      ▼
-              Upper-right Activity Panel
+Battle Runtime ── Decision 发起 / 生命周期 ──┐
+Battle Simulation ── committed messageFacts ────────┤
+DeepSeekDecision ── Call A visible strategyMemo ──┐ │
+                                                  ▼ ▼
+                                   Runtime request/generation gate
+                                                  │
+                                 Runtime Message Dispatcher
+                                     (one ordered sequence)
+                                                  │
+                                       PokeMan Message Feed
+                                                  │
+                                     Local Message Formatter
+                                                  │
+                                    Upper-right Activity Panel
 ~~~
 
-这是一条单向观察链路。消息链路不得反向调用 Decision、修改 Simulation 或推进 Battle Tick。
+这是一条只读观察链路：Call A 文本需要通过 Runtime 的请求有效性校验后才发布；消息链路不得反向调用 Decision、修改 Simulation 或推进 Battle Tick。右侧只有一个 Feed，不建立第二个文本提示层。
 
 ### 5.2 核心职责
 
 | 模块 | 职责 | 不负责 |
 |---|---|---|
-| Decision | 根据 Observation 生成候选 Plan | 生成 UI 消息、维护消息历史 |
+| Decision | 根据 Observation 生成候选 Plan；可选 observer 旁路输出已完成 Call A 的原始 visible strategyMemo | 判定 Plan 已接受、维护消息历史 |
 | Simulation | 校验并提交游戏事实 | Browser DOM、消息文案 |
-| Runtime | 在正确时机发布 Runtime 事件，汇总 Tick 消息事实 | 面板滚动和样式 |
+| Runtime | 在正确时机发布 Runtime 事件与 Tick 事实；验证 Decision observer 关联请求并统一排序非权威策略文本 | 面板滚动、文案和样式 |
 | Message Feed | 接收并追加不可变消息，提供有界历史 | AI 请求状态、Battle State |
 | Message Formatter | 将事件类型和参数转为本地化文案 | 推断未发生的事实 |
 | Activity Panel | 展示消息、排序和滚动 | 订阅 AI 请求生命周期并维护状态 |
@@ -338,6 +341,11 @@ type BattleMessage =
       readonly type: "decision.started";
       readonly actorId: string;
       readonly reason: PlayerVisibleDecisionReason;
+    })
+  | (BattleMessageBase & {
+      readonly type: "decision.analysis_completed";
+      readonly actorId: string;
+      readonly text: string; // visible Call A strategyMemo, never hidden reasoning
     })
   | (BattleMessageBase & {
       readonly type: "decision.accepted";
@@ -442,6 +450,7 @@ type BattleMessage =
 - sequence 是唯一排序依据；tick 和 elapsedMs 不决定消息顺序。
 - 同一 Tick 的 Simulation 事实顺序由 TickOutput.messageFacts 数组显式给出，Runtime 按数组顺序发布。
 - Runtime Events 在其真实触发点同步发布；例如 Tick facts 发布完毕后才调用新的 DecisionPort，因此新的 decision.started 必须排在该 Tick 的伤害 / 中断事实之后。
+- Call A observer 的文本按 Runtime **实际确认其有效并接收**的时刻分配 sequence，可能与另一 Actor 的技能、伤害等消息交错，不强制紧邻同角色的 decision.started；已取消的过期文本不补发、不回插旧序列。
 - 不依赖对象属性顺序、Replay 数组分组顺序或异步 Promise 偶然完成顺序推导消息顺序。
 
 
@@ -466,7 +475,7 @@ interface BattleMessageFeed {
 - 超过容量时只淘汰最旧消息。
 - append 由 PokeMan composition 中的 Runtime observer 调用；Activity Panel 只有 getSnapshot / subscribe 权限，不直接写入 Feed。
 - 单个 Feed subscriber 抛错不得阻断其他 subscriber，也不得向 Runtime 传播。
-- Runtime observer 抛错同样必须被隔离，不得影响 Runtime、Simulation 或 BattleResult。
+- Runtime observer 抛错同样必须被隔离，不得影响 Runtime、Simulation 或 BattleResult；concrete Decision observer 失败也不得改变策略提交或 Call B 输入。
 - clear 用于 Battle 关闭（Runtime.close / Battle Frame 清理）或明确重置；不用于 AI 请求完成、Battle settled 或单次消息结束。关闭时必须释放本场 Feed，不作战后持久化。
 - Feed 不保存 activeRequest、thinkingActors、requestStatus 等字段。
 - Feed 不拥有 Battle State，也不能通过消息反向改变游戏。
@@ -485,12 +494,14 @@ interface BattleMessageFeed {
 ```ts
 interface BattleRuntime {
   onMessage(listener: (message: BattleMessage) => void): () => void;
+  reportDecisionAnalysis(request: DecisionRequest, strategyMemo: string): void; // trusted, non-authoritative observation only
 }
 ```
 
 Runtime 负责发布：
 
 - decision.started：在真正调用 DecisionPort 前发布；先检查 command 携带的内部 trigger reason，只对玩家可感知原因发布。
+- decision.analysis_completed：仅接受 concrete Decision observer 对仍有效、未 abort、未过期且属于可见决策轮次的 request 发出的完整 Call A visible strategyMemo；同步赋予 sequence，最多一次，永不作为 accepted Plan。这个非权威入口是 Runtime 的观察通道，不修改 DecisionPort、PlanSubmission 或 Simulation gameplay。
 - decision.failed：仅在 Runtime 消费到 session_fatal 失败记录、即将以 source: "decision" 结束 Battle 时发布一次；普通 attempt_failure 只参与现有重试 / circuit-breaker 逻辑。
 - battle.paused：仅在 Runtime 从 running 真正转换到 paused 时发布，并携带实际 pause reason。
 - battle.resumed：仅在 Runtime 从 paused 真正转换回 running 时发布；created / initializing 首次进入 running 不算 resumed。
@@ -501,7 +512,7 @@ Runtime 负责发布：
 - 当前 DecisionReason 定义在 Simulation plan command 层。实现时让 RequestDecisionCommand 携带内部 reason 元数据；makeCorrection 使用 correction reason。该 reason 不加入传给模型的 DecisionRequest，不作为 LLM 输入。
 - decision.started 的发布点位于 Runtime 已确认请求有效、AbortController 已建立之后，紧邻 DecisionPort.decide() 调用之前。
 - 每次真正的玩家可感知决策轮次最多发布一次；Call A / Call B、prefetch 和 correction 不重复发布。
-- Runtime 仍然负责 AbortController、generation、stale completion 和 Decision Inbox；这些内部机制不向 Feed 暴露状态同步接口。
+- Runtime 仍然负责 AbortController、generation、stale completion 和 Decision Inbox；这些内部机制不向 Feed 暴露状态同步接口。PokeMan 在创建 DeepSeekDecision 时注入可选 `processMessageObserver(request, text)`，回调把完整 strategyMemo 交给 Runtime 的 `reportDecisionAnalysis`，不得直接写 Feed 绕过请求有效性与统一 sequence；observer 异常不得改变 Decision 结果。
 - #finish 发布 battle.ended 不额外留存 Feed；PokeMan 在 Battle 关闭 / Frame 清理时取消监听并清空 Feed。Runtime 自身不持有 PokeMan Feed。
 - listener 抛错必须逐个隔离，不得影响 Runtime、Simulation 或 BattleResult。
 - PokeMan 必须在 runtime.run() 之前注册 onMessage listener，避免初始化期间的第一条消息丢失。
@@ -582,10 +593,10 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 
 ### 6.5 与 Presentation / Browser 的关系
 
-- Message Feed 不属于 RenderProjection。
+- Message Feed 不属于 gameplay RenderProjection；AI 可见策略文本也不是 RenderProjection 或 Battle State。
 - 不通过每条消息创建 RenderNode。
 - 不让 Message Feed 的 DOM 更新调用 Simulation 或 Decision。
-- Activity Panel 作为 Battle View 的独立 UI 子组件 / slot，由 PokeMan composition 挂载；外层 Battle View shell 的生命周期由 PokeMan composition 管理，不与 World 的 PresentationPort 生命周期绑定。
+- Activity Panel 是 Battle View 的唯一战斗消息 UI，由 PokeMan composition 管理，接受同一个 Feed 中的事实事件与 AI 策略文本；不再另外创建 Decision 文本临时覆盖层。外层布局与 map-scoped 尺寸观测组件要能先于 BattlePresentation 初始化而存在，Battle 关闭时统一销毁。
 - Panel 通过 Feed subscription 接收有界消息快照或增量；Panel 只读，不拥有消息写入权。
 - World / HUD 与 Activity Panel 不共享必须原子成功的更新事务。
 - Panel 的格式化、DOM 更新和滚动逻辑失败时，只影响 Panel。
@@ -600,8 +611,8 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 - Activity Panel 宽度为上半部分可用内容宽度的 32%，最大 600px；左上地图使用剩余宽度。
 - 计算规则：panelWidth = min(upperContentWidth × 0.32, 600px)；mapWidth = upperContentWidth - panelWidth。upperContentWidth 是扣除上半部分自身 padding 与列间距后的可分配宽度。
 - 左上地图的 viewport width / height 必须取左上地图容器自身的实际内容宽高；不得使用整个 Battle View、未扣除 Panel 的上半部分宽度或浏览器 viewport 尺寸。
-- 当前 BattlePresentationBuilder 从 `scope.viewport` 读取初始尺寸并订阅 resize；PokeMan composition 必须向其提供左上地图容器的 map-scoped viewport。若现有 scope viewport 仍是全局 viewport，应增加局部 viewport adapter / port，不得在 Presentation 内部硬编码 Panel 宽度或再次从全局 viewport 推算。
-- `calculateTileViewportLayout`、Camera、scale、tile projection，以及 `lr-battle-view` 的 `viewportWidth / viewportHeight` 必须使用同一份 map-scoped viewport 尺寸；resize 更新也必须来自左上地图容器。
+- 当前 BattlePresentationBuilder 从 `scope.viewport` 读取尺寸并订阅变化；PokeMan composition 必须将地图组件通过 `battle.viewport.changed` 实测上报的尺寸转换成局部 Viewport adapter，注入 BattlePresentation。若现有 `scope.viewport` 仍是全局窗口尺寸，不得直接复用它代替地图局部尺寸。子系统可以向预先存在的布局组件发送 `battle.viewport.request` 重新获取报告；它不要求 Framework 新增通用 Viewport RPC。
+- `calculateTileViewportLayout`、Camera、scale、tile projection，以及 `lr-battle-view` 的 `viewportWidth / viewportHeight` 必须使用同一份 map-scoped viewport 尺寸；所有 resize 更新都来自左上地图容器的 ResizeObserver / request-report，且布局不得被 `lr-battle-view` 的内联渲染尺寸反向覆盖。
 - 在上述受支持范围内，不提供抽屉、覆盖层、移动端替代布局或断点切换；不为未支持的极端分辨率增加额外适配。
 
 ## 7. Call A 性能优化方案
@@ -764,12 +775,12 @@ Streaming 可以作为后续独立实验：
 交付：
 
 - 确认 Message Feed 是追加式历史消息，而不是状态面板。
-- 冻结 Runtime Events 与 Simulation Facts 的权威边界。
+- 冻结 Runtime Events 与 Simulation Facts 的权威边界，以及 Call A visible strategyMemo 作为**非权威**旁路进入同一 Feed 的规则；只保留一个 Activity Panel。
 - 冻结玩家可见决策触发原因，以及 prefetch / correction / retry 不重复播报的规则。
 - 冻结 movement intent 与 motion segment 的区别、planId 关联方式和中断语义。
 - 冻结 BattleMessage union、BattleResult payload、sequence / elapsedMs 语义。
 - 冻结 Feed 生命周期：只在 Battle 运行期间保存有界历史；Battle 关闭（Runtime.close / Battle Frame 清理）时清空，不保留战后消息。
-- 冻结 Battle View 上下结构不变、上半部分左右并排的布局：右上 Panel 宽度为上半部分可用内容宽度的 32%，最大 600px；左上地图使用剩余宽度；下半部分保持原样。不增加抽屉或覆盖层模式，也不扩大游戏原有分辨率支持范围。
+- 冻结 Battle View 上下结构不变、上半部分左右并排的布局：右上 Panel 宽度为上半部分可用内容宽度的 32%，最大 600px；左上地图使用剩余宽度；下半部分保持原样。尺寸通过地图组件 ResizeObserver + Frame-targeted Presentation Event 反向上报，子系统用 RenderEvent 请求重报；预先建立可测量布局壳，避免首帧死锁，不增加抽屉或覆盖层模式。
 - 冻结 Call A 指标采集边界和 v0 / 新 profile 版本边界。
 
 Gate：所有事件都有唯一权威来源、触发时机、顺序和展示规则；不得出现 Active Decisions、thinking state、request lifecycle UI 等状态面板设计。
@@ -791,7 +802,7 @@ Gate：具备可查的对照测试记录并明确选择性能合适的 profile�
 
 交付：
 
-- BattleMessage discriminated union 与 SimulationMessageFact。
+- BattleMessage discriminated union（含非权威 decision.analysis_completed）与 SimulationMessageFact。
 - TickOutput.messageFacts，只包含 Simulation 权威事实。
 - decision.accepted、movement intent、skill、damage、defeat 事实。
 - movementIntent 跨 motion segment 和 idle 间隙的状态跟踪。
@@ -803,10 +814,10 @@ Gate：每一种 Simulation 消息都有明确 reducer 提交点；Runtime 事�
 
 交付：
 
-- BattleRuntime.onMessage(listener) observer surface。
+- BattleRuntime.onMessage(listener) observer surface，以及可信、只读的 reportDecisionAnalysis(request, text) 入口；DeepSeekDecision 通过可选 observer 复用完整 Call A visible strategyMemo。
 - Runtime sequence / message ID / elapsedMs。
 - Decision trigger reason 元数据，但不传给 LLM。
-- Runtime lifecycle messages 与 Tick messageFacts 的统一发布顺序。
+- Runtime lifecycle messages、Tick messageFacts 与 Call A 可见策略消息的统一排序；无效/过期请求不会进入 Feed。
 - listener / subscriber 异常隔离。
 - PokeMan Message Feed append-only 实现。
 - 最近 N 条消息的有界缓存。
@@ -823,9 +834,9 @@ Gate：Feed 不包含 Active Request / Thinking State / Request Cancellation UI 
 - 在 PokeMan 当前支持的分辨率与宽高比范围内，上半部分保持左右并排，不增加抽屉、覆盖层或模式切换；不要求适配游戏未支持的极端尺寸。
 - 最新消息置顶。
 - 历史滚动和新消息提示。
-- 消息模板、Actor / Skill 名称映射。
+- 统一的 `【Actor】描述` 字符串模板、Actor / Skill 名称映射；Battle 事实与 Call A 可见策略消息都显示在同一 Panel，不再渲染单独的临时 Decision 文本。
 - reduced motion 和基本无障碍支持。
-- Camera / logical viewport 按左上地图容器的实际内容宽度和高度计算；不得按整个 Battle View 或上半部分未扣除 Panel 前的尺寸计算。
+- Camera / logical viewport 按左上地图容器 ResizeObserver 实际测量的内容宽高计算；组件首次报告、变化主动报告，子系统 RenderEvent 请求重报；不得按整个 Battle View 或上半部分未扣除 Panel 前的尺寸计算。
 
 Gate：Panel 不依赖 AI 请求结束事件，不影响地图 / HUD / 下半部分；在项目当前支持范围的代表性 viewport 下，上半部分符合 32% / 600px 规则，地图 Presentation 使用左上地图容器自身的实际宽高。不把未支持的极端尺寸纳入验收，也不因此引入额外布局模式。
 
@@ -834,13 +845,13 @@ Gate：Panel 不依赖 AI 请求结束事件，不影响地图 / HUD / 下半部
 交付：
 
 - AI vs AI 完整战斗 E2E。
-- 受击后旧请求失效、新请求发起的消息顺序测试。
+- 受击后旧请求失效、新请求发起的消息顺序测试；旧 Call A 迟到文本不可插入 Feed。
 - 多段移动只产生一组 intent 消息的测试。
 - 移动在 segment 间 idle 空隙被中断的测试。
 - Replay v1 回归。
 - Pause / Resume / Cancel / Battle End 回归。
 - Panel 故障隔离和 Feed 生命周期测试。
-- 固定并排布局的多视口测试。
+- 固定并排布局的多视口测试、组件尺寸初次上报 / ResizeObserver 变化 / 子系统请求重报 / 子 Frame 遮挡后恢复重报 / 非法尺寸与相同尺寸去重。
 - Call A 性能与策略质量测试记录、选定 profile 及理由。
 
 Gate：消息正确性、战斗回归和布局约束通过；保留性能测试记录并完成合适 profile 的选择，不要求达到数值硬门槛。
@@ -866,7 +877,7 @@ Gate：消息正确性、战斗回归和布局约束通过；保留性能测试�
 - 玩家可感知的 DecisionPort 请求在实际调用前产生一次 decision.started。
 - initial、damaging_hit、plan_exhausted、plan_failed 按规则产生消息。
 - prefetch、correction、内部重试不产生重复 decision.started。
-- Call A 和 Call B 不分别产生消息。
+- Call A 与 Call B 不分别产生决策状态卡；有效且玩家可感知的 Call A 可见文本只生成一次 decision.analysis_completed，Call B 不产生单独的开始/结束文案。
 - Plan 只有在 Simulation acceptPlan 后才产生 decision.accepted。
 - decision.accepted 忠实表达现有 v0 允许的 Plan：path 与 skill 可同时存在；非空 path 与显式 turn 不能同时存在；path 为空时允许 turn 与 skill。
 - Plan 仅被模型返回但未通过验证时，不显示“已决定”。
@@ -882,7 +893,7 @@ Gate：消息正确性、战斗回归和布局约束通过；保留性能测试�
 - 同一 Tick 的 messageFacts 顺序稳定。
 - Runtime observer 抛错不影响 BattleResult。
 - 内部 request cancellation 不会修改或删除历史消息。
-- stale completion 不会产生虚假的 decision.accepted。
+- stale completion 不会产生虚假的 decision.accepted；迟到 Call A strategyMemo 不产生 decision.analysis_completed，prefetch / correction / retry 不刷出没有起始消息的策略文本。
 - 受击后如果 Runtime 发起新的玩家可感知 Decision 请求，新的 decision.started 排在该 Tick 的受击事实之后。
 
 ### 9.3 核心场景验收
@@ -904,14 +915,14 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 ### 9.4 Presentation / Browser 测试
 
 - 新消息只更新 Message Feed / Activity Panel，不修改 World / HUD 的 Gameplay state。
-- 新消息到达后正确插入顶部。
+- Battle facts 与 Call A 可见策略文本进入同一 Feed 并正确按 sequence 最新置顶，统一 `【Actor】` 模板；非权威文本以 textContent 等纯文本方式呈现，不能执行 HTML。
 - 用户阅读旧消息时不被强制滚回顶部。
 - 长战斗消息缓存始终有界。
 - Activity Panel DOM / formatter 出错不会导致 Battle Simulation 失败。
 - 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，Battle View 保持原有上下结构，上半部分始终左右并排。
 - 上半部分右侧 Panel 宽度等于上半部分可用内容宽度的 32%，但不超过 600px；左上地图使用剩余宽度；下半部分保持现有布局。
 - 不出现抽屉、覆盖层或布局模式切换；未支持的极端尺寸不属于本功能验收范围。
-- Camera / logical viewport 使用左上地图容器自身的实际内容宽度和高度；验证 BattlePresentationBuilder 接收到的 viewport source 确实是 map-scoped viewport，并随左上容器 resize 更新，而不是全局 viewport。
+- Camera / logical viewport 使用左上地图容器自身的实际内容宽度和高度；验证初始可测量布局先建立、`battle.viewport.changed` 首次/resize 正向报告、`battle.viewport.request` 反向请求重报及 top-frame 恢复补报，BattlePresentationBuilder 接收的确实是 map-scoped viewport 而非全局 viewport；渲染的自身 inline width/height 不得反向控制实际布局。
 - battle.ended 在关闭前按规则发布；Battle 关闭后 Feed 为空、subscription / DOM listener / 缓存引用已清理，不要求战后仍可见最后消息。
 
 ### 9.5 性能测试
@@ -935,11 +946,11 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 | game-libs/battle/src/simulation/plan.ts | RequestDecisionCommand 携带内部 trigger reason；correction 使用独立 reason |
 | game-libs/battle/src/simulation/state.ts | 维护跨 motion segment 的 movement intent 元数据 |
 | game-libs/battle/src/simulation/tick.ts | 生成有序 SimulationMessageFact，并在 TickOutput 暴露 messageFacts |
-| game-libs/battle/src/simulation/runtime.ts | Dispatcher、sequence / elapsedMs、Decision started、Battle lifecycle 消息和 Runtime timing |
+| game-libs/battle/src/simulation/runtime.ts | Dispatcher、sequence / elapsedMs、Decision started、Battle lifecycle 消息、非权威 Call A observer 的有效请求过滤和 Runtime timing |
 | game-libs/battle/src/decision.ts 或新的版本化 Decision 实现 | Call A profile、Call A / B timing、Provider usage 与 Metrics Sink |
-| game-libs/battle/browser/battle.browser.js | 固定并排布局中的右侧 Message Panel |
+| game-libs/battle/browser/battle.browser.js | 唯一右侧 Message Panel、`【Actor】` 字符串模板的纯文本显示；地图组件的实测尺寸消息和尺寸请求处理（布局壳可由独立 UI 组件实现） |
 | game-libs/battle/browser/battle.css | 上半部分左右分栏；右上 Panel 宽度 32% / 最大 600px、消息样式、独立滚动；地图容器占上半部分剩余宽度 |
-| subsystems/battle.mjs | runtime.run() 前注册 onMessage，组装 Feed / Panel 并管理 View 生命周期 |
+| subsystems/battle.mjs | runtime.run() 前订阅 onMessage、创建 DeepSeek processMessageObserver、组装单 Feed / Panel、接入局部 Viewport 与 Presentation Events、管理 Battle 关闭清理 |
 | game-libs/battle/test/decision.test.mjs | 性能 profile、usage、Metrics Sink 和 Provider 测试 |
 | game-libs/battle/test/simulation.test.mjs | messageFacts、movement intent、产生时机和顺序 |
 | game-libs/battle/test/presentation.test.mjs | Feed / Panel 隔离和固定布局测试 |
@@ -958,7 +969,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 6. **Simulation 是 Plan 接受、移动、技能、伤害和击倒事实的唯一权威。**
 7. **移动意图与单段 motion segment 分离；多段路径不能刷屏，也不能漏报中断。**
 8. **Runtime 统一分配 message ID / sequence / elapsedMs；sequence 决定顺序。**
-9. **Call A 性能实验与 Message Feed 完全解耦。**
+9. **Call A 性能调参实验与 Message Feed 完全解耦；Feed 仅旁路读取当前已生成的可见 Strategy Memo，不改变 Call A/Call B 调用策略。**
 10. **Replay v1 不因消息窗口而被隐式修改。**
 11. **在 PokeMan 当前支持的游戏分辨率与宽高比范围内，保留 Battle View 原有上下结构，只将上半部分固定为左右并排；右上 Panel 为上半部分可用内容宽度的 32%，最大 600px；左上地图使用剩余宽度；不提供抽屉或覆盖层模式，也不扩大既有分辨率支持范围。**
 12. **Message Feed / Panel 故障不能影响核心战斗。**
@@ -972,17 +983,17 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - Call A 有可查的性能测试记录，候选 profile 的延迟、使用量和 Plan 质量观测可供后续调参参考。
 - Call A / Call B 分段指标可采集；Provider usage 缺失时明确记录 unknown。
 - v0 Decision 基线保持可用；依据测试记录选择性能合适的 profile 并记录理由，不以固定数值门槛决定是否完成。
-- Runtime Events 与 Simulation Facts 的来源和责任边界清晰，不混入彼此的输出契约。
-- 每一种玩家可见消息都有唯一权威来源、触发时机和确定顺序。
+- Runtime Events 与 Simulation Facts 的来源和责任边界清晰；Call A visible strategyMemo 是独立的非权威 Decision 观察事件，不混入 gameplay / Replay。
+- 每一种权威战斗事实消息都有唯一权威来源、触发时机和确定顺序；AI 策略文本明确标记为非权威，统一进入同一有序 Feed。
 - decision.accepted 如实表达已接受的合法 Plan：移动可与技能组合，显式 turn 不得与非空移动路径组合。
 - 多段移动只展示一次移动意图的开始、完成或中断；segment 间受击不会漏报中断。
-- 消息最新置顶，历史消息不会因为 AI 请求完成、失败或取消而被修改。
+- 战斗事实和可见策略文本使用一致的 `【Actor】` 本地字符串模板并在同一 Panel 最新置顶，历史消息不会因为 AI 请求完成、失败或取消而被修改。
 - 受击、技能结算、伤害、移动中断和重新发起决策等事件按真实发生顺序展示。
 - battle.ended 只发布一次并携带最终 BattleResult。
 - Message Feed 不维护 AI request state，不参与 Simulation。
 - runtime.run() 前完成消息订阅；Battle 关闭（Runtime.close / Battle Frame 清理）时取消订阅并清空 Feed，不保留战后消息。
-- Activity Panel 不与 World / HUD 共用必须原子成功的更新事务。
-- 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，Battle View 保留原有上下结构，只将上半部分固定为左右并排；右上 Panel 为上半部分可用内容宽度的 32%，最大 600px，左上地图使用剩余宽度；下半部分保持现状；不存在抽屉、覆盖层或模式切换；未支持的极端尺寸不属于本功能验收范围。
+- Activity Panel 不与 World / HUD 共用必须原子成功的更新事务；消息文本与 gameplay RenderProjection 不混用。
+- 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，Battle View 保留原有上下结构，只将上半部分固定为左右并排；右上 Panel 为上半部分可用内容宽度的 32%，最大 600px，左上地图使用剩余宽度；下半部分保持现状。地图组件首次就绪和尺寸变化时经 Frame-targeted Presentation Event 上报 content box，子系统可经 RenderDomain.emit 请求重新上报，首次初始化无循环等待；不存在抽屉、覆盖层或模式切换。
 - Replay v1、BattleResult、Pause / Resume / Cancel 和战后 Settlement 无回归。
 - Panel / Feed / Metrics Sink 故障均不会影响核心战斗。
 
