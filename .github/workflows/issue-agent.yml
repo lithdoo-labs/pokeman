@@ -83,6 +83,7 @@ jobs:
     if: needs.preflight.outputs.allowed == 'true' && needs.preflight.outputs.operation != 'recover'
     runs-on: [self-hosted, linux, x64, opencode, labs]
     timeout-minutes: 90
+    environment: battle-live-test
     permissions:
       contents: read
       actions: read
@@ -114,6 +115,7 @@ jobs:
           OPENCODE_BIN: opencode2
           XDG_DATA_HOME: /runner/state/lithdoo-labs-org/agent-projects/pokeman/issue-agent/opencode-data
           ISSUE_AGENT_STATE: /runner/state/lithdoo-labs-org/agent-projects/pokeman/issue-agent
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           python3 scripts/issue_agent/agent.py execute \
             --input "$RUNNER_TEMP/issue-agent-input/issue-agent-input.json" \
