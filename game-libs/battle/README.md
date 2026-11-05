@@ -16,6 +16,7 @@ Battle 使用 200 ms/Tick 的确定性 Simulation，不复用 RPGMap Runtime；M
 - [BATTLE_V0_CONTRACTS.md](./docs/BATTLE_V0_CONTRACTS.md) — Content、Observation、PlanSubmission、Snapshot、Event、Projection 等数据契约。
 - [BATTLE_V0_SIMULATION.md](./docs/BATTLE_V0_SIMULATION.md) — Runtime state、clock/scheduler、Decision pipeline、Tick transaction、pause、Snapshot/Replay。
 - [BATTLE_V0_DECISION.md](./docs/BATTLE_V0_DECISION.md) — `DecisionPort`、DeepSeek concrete Decision、workflow/transport/failure contract。
+- [BATTLE_V0_PROCESS_MESSAGES.md](./docs/BATTLE_V0_PROCESS_MESSAGES.md) — additive、非权威的 Call A 可见策略文本，进入与 Battle 事实统一的角色标签 Message Feed；不修改既有 gameplay/Decision 数据结构。
 - [BATTLE_V0_INTEGRATION.md](./docs/BATTLE_V0_INTEGRATION.md) — Host/Frame、RPGMap 素材兼容与 product composition boundary。
 - [BATTLE_V0_PRESENTATION.md](./docs/BATTLE_V0_PRESENTATION.md) — Presentation API、Render Tree/Browser ABI、camera/viewport/effects/lifecycle。
 - [BATTLE_V0_TEST_MATRIX.md](./docs/BATTLE_V0_TEST_MATRIX.md) — Rule ID → scenario → expected result。
@@ -33,6 +34,10 @@ SPEC
 ```
 
 README 不复制具体 Rule；旧单体设计、迁移矩阵和阶段状态由 Git 历史保存，不属于 Current normative source。
+
+## 当前待实施改造提案
+
+[Battle 决策性能与统一角色叙事消息流设计](./docs/BATTLE_DECISION_PERFORMANCE_AND_MESSAGE_FEED_DESIGN.md) — **Design Proposal / 未实现**；包含 Call A 实测调优、唯一 Activity Panel，以及 Battle 地图组件经既有双向 Presentation 消息上报 / 请求其实际 content-box 尺寸。此提案不覆盖上面的 v0 冻结权威顺序。
 
 ## 当前系统边界
 
