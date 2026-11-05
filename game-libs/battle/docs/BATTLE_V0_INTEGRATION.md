@@ -343,6 +343,8 @@ DeepSeekDecision
 
 Decision module 只负责“一次 request 如何通过 configured transport 得到一次 Plan/failure completion”。`decisionGeneration`、何时创建 Decision Request、Decision Inbox、stale generation fencing、Plan validation、Simulation correction、bounded active/pending accepted-plan pipeline 与 Replay consume/accept Tick 都继续属于 Simulation Runtime lifecycle。
 
+Battle v0 过程消息是单独的 non-authoritative additive output，不改变上述 Decision/Simulation authority；具体边界见 [BATTLE_V0_PROCESS_MESSAGES.md](./BATTLE_V0_PROCESS_MESSAGES.md)。
+
 game/business composition 只负责：
 
 ```text
