@@ -203,7 +203,7 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 - skill.resolved：技能判定完成后发布，准确区分 hit、miss、immune、invalid。
 - damage.applied：HP 已完成结算后发布，amount 和 hpAfter 使用 Simulation 的最终值。
 - actor.defeated：Actor 首次进入死亡状态时发布一次，且必须晚于导致其死亡的 damage.applied。
-- decision.failed：仅在 Runtime 已确认该决策最终失败且会影响战斗推进时发布；普通超时重试、Abort、stale completion 不显示。
+- decision.failed：仅当 Runtime 消费到 session_fatal 决策失败、并确认该失败将导致 Battle 终止时发布；普通 attempt_failure、超时重试、Abort、stale completion 不显示。
 - battle.paused / resumed：只在 Runtime 真正完成对应状态转换时发布。
 - battle.ended：在 Runtime 提交最终 BattleResult 时发布一次，携带完整 result；不能把 settled 和后续 close 当成两次结束。
 
@@ -238,7 +238,7 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 | prefetch_after_materialize | 不显示，属于后台提前准备 |
 | Plan 被拒绝并自动 correction | 不重复显示“开始思考”；内部修正本身不单独播报 |
 | 普通 attempt failure 后自动重试 | 不显示 |
-| 最终 session-fatal 决策失败并影响战斗 | 可发布一次 decision.failed，使用安全、简短的玩家文案 |
+| 最终 session_fatal 决策失败并导致 Battle 终止 | 在 battle.ended 前发布一次 decision.failed，使用安全、简短的玩家文案 |
 | Battle 因决策故障进入暂停 | 发布 battle.paused；不暴露 Provider 内部错误 |
 | Battle 结束 | 发布一次 battle.ended，并携带 BattleResult |
 | Presentation / Panel 自身错误 | 不生成伪造的战斗消息；通过隔离的错误处理记录 |
@@ -330,6 +330,11 @@ type BattleMessage =
           readonly targetActorId: string;
         } | null;
       };
+    })
+  | (BattleMessageBase & {
+      readonly type: "decision.failed";
+      readonly actorId: string;
+      readonly reason: "unavailable";
     })
   | (BattleMessageBase & {
       readonly type: "decision.failed";
@@ -468,7 +473,7 @@ interface BattleRuntime {
 Runtime 负责发布：
 
 - decision.started：在真正调用 DecisionPort 前发布；先检查 command 携带的内部 trigger reason，只对玩家可感知原因发布。
-- decision.failed：仅在最终失败已被 Runtime 确认且会影响战斗推进时发布一次。
+- decision.failed：仅在 Runtime 消费到 session_fatal 失败记录、即将以 source: "decision" 结束 Battle 时发布一次；普通 attempt_failure 只参与现有重试 / circuit-breaker 逻辑。
 - battle.paused / battle.resumed：根据真实生命周期转换发布，不根据浏览器可见性自行猜测。
 - battle.ended：在 #finish 提交最终 BattleResult 后发布一次，必须早于 run() Promise resolve；payload 携带完整 result。
 
@@ -637,35 +642,50 @@ DecisionPort.decide()
 建议在新的、版本化的 Decision implementation 中注入 best-effort Metrics Sink：
 
 ```ts
-type DecisionStage = "call_a" | "call_b";
+type ProviderCallStage = "call_a" | "call_b";
 
-interface DecisionMetric {
-  readonly profileId: string;
-  readonly stage: DecisionStage;
-  readonly durationMs: number;
-  readonly outcome: "success" | "provider_error" | "timeout" | "abort" | "parse_error";
-  readonly httpStatus?: number;
-  readonly usage?: {
-    readonly inputTokens?: number;
-    readonly outputTokens?: number;
-    readonly reasoningTokens?: number;
-  };
+interface ProviderUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly reasoningTokens?: number;
 }
 
+interface ProviderCallMetric {
+  readonly scope: "provider";
+  readonly profileId: string;
+  readonly stage: ProviderCallStage;
+  readonly durationMs: number;
+  readonly outcome: "success" | "provider_error" | "timeout" | "abort" | "incomplete_response" | "parse_error";
+  readonly httpStatus?: number;
+  readonly usage: ProviderUsage | null; // null means the Provider did not return usage.
+}
+
+interface RuntimeDecisionMetric {
+  readonly scope: "runtime";
+  readonly stage: "request_to_completion" | "completion_to_acceptance" | "acceptance_to_action_start";
+  readonly durationMs?: number;
+  readonly tickDelay?: number;
+  readonly outcome?: "completed" | "failed" | "aborted" | "accepted" | "rejected" | "stale";
+}
+
+type DecisionMetric = ProviderCallMetric | RuntimeDecisionMetric;
+
 interface DecisionMetricsSink {
-  record(metric: DecisionMetric): void;
+  record(metric: DecisionMetric): void | Promise<void>;
 }
 ```
 
-同时由 Runtime 侧测量：
+Runtime 侧使用同一个观测边界记录：
 
-- DecisionPort 调用开始到 completion 入 inbox 的时间。
-- completion 入 inbox 到 Simulation 接受 / 拒绝 Plan 的 Tick 延迟。
-- Plan 被接受到第一次实际移动或技能动作开始的 Tick 延迟。
+- DecisionPort 调用开始到 completion 入 inbox 的时间（request_to_completion）。
+- completion 入 inbox 到 Simulation 接受 / 拒绝 Plan 的 Tick 延迟（completion_to_acceptance）。
+- Plan 被接受到第一次实际移动或技能动作开始的 Tick 延迟（acceptance_to_action_start）。
+
+Provider Call 与 Runtime Decision 两类指标共用 DecisionMetricsSink，但由各自所属层产生；Runtime 不测量或猜测 Provider 内部 Call A / Call B 的耗时。
 
 这样可以区分 Provider 慢、Runtime 等待 Tick、Plan 校验失败和行动调度延迟，避免把所有等待都归因于 Call A。
 
-Metrics Sink 必须是非阻塞、best-effort：同步抛错或异步失败都不得影响 Decision、Simulation 或 BattleResult。不得记录 API Key、Authorization header、完整 Prompt、原始模型响应或 hidden reasoning。
+Metrics Sink 必须是非阻塞、best-effort：record 可以同步返回或返回 Promise；调用方不得 await 它来推进战斗，必须隔离同步 throw 和异步 rejection。任何指标写入失败都不得影响 Decision、Simulation 或 BattleResult。不得记录 API Key、Authorization header、完整 Prompt、原始模型响应或 hidden reasoning。
 
 本轮性能 profile 和 Metrics Sink 必须通过新的 Decision implementation / version 演进；不得为了加指标而静默改变已冻结的 v0-quality 实现。
 
@@ -741,7 +761,7 @@ Gate：所有事件都有唯一权威来源、触发时机、顺序和展示规�
 - Runtime 请求到 completion、completion 到 Plan accept 的延迟。
 - 固定 Observation / Battle Seed 测试集。
 - high / low / none（如支持）对照报告。
-- responsive candidate 与质量验收结论。
+- 候选 profile 与质量验收结论。
 
 Gate：新 profile 未通过质量门槛时，不替换 v0-quality 默认值；Metrics Sink 失败不能影响战斗。
 
