@@ -1,0 +1,134 @@
+name: Battle Live Test (DeepSeek)
+
+on:
+  # Bootstrap run: adding/updating this workflow on main runs one real
+  # Call A + Call B smoke test. Future runs can be started manually below.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/battle-live-test.yml"
+  workflow_dispatch:
+    inputs:
+      confirm_live_api:
+        description: "Run two real DeepSeek API requests (Call A and Call B)."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: battle-live-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-smoke:
+    name: Verify DeepSeek Call A + Call B
+    if: github.event_name == 'push' || inputs.confirm_live_api == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: battle-live-test
+
+    steps:
+      - name: Checkout repository and pinned LoomRealm submodule
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: loom-realm/package-lock.json
+
+      - name: Verify DeepSeek credential is available
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+            echo "::error::DEEPSEEK_API_KEY is not available to the battle-live-test environment."
+            exit 1
+          fi
+          echo "DeepSeek credential is available; value will not be displayed."
+
+      - name: Install pinned LoomRealm dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable npm
+          (
+            cd loom-realm
+            npm ci --no-audit --no-fund
+          )
+
+      - name: Build Battle runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE"
+
+          # Build only the LoomRealm packages required by Battle's public
+          # subsystem types; no browser or full-product test suite is needed.
+          (
+            cd "$root/loom-realm"
+            npm run build \
+              -w @loomrealm/foundation \
+              -w @loomrealm/wire \
+              -w @loomrealm/shared-state \
+              -w @loomrealm/session-events \
+              -w @loomrealm/platform-ports \
+              -w @loomrealm/runtime-control \
+              -w @loomrealm/renderer-control \
+              -w @loomrealm/data \
+              -w @loomrealm/subsystem
+          )
+
+          mkdir -p "$root/node_modules/@pokeman"
+          ln -sfn "$root/loom-realm/node_modules/@loomrealm" "$root/node_modules/@loomrealm"
+          ln -sfn "$root/game-libs/tile-presentation" "$root/node_modules/@pokeman/tile-presentation"
+          ln -sfn "$root/game-libs/battle" "$root/node_modules/@pokeman/game-battle"
+
+          export PATH="$root/loom-realm/node_modules/.bin:$PATH"
+          (
+            cd "$root/game-libs/tile-presentation"
+            npm run build
+          )
+          (
+            cd "$root/game-libs/battle"
+            npm run build
+          )
+
+      - name: Run real DeepSeek Call A + Call B smoke test
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          BATTLE_DEEPSEEK_SMOKE: "1"
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            --test-name-pattern="optional credential-gated real DeepSeek smoke" \
+            game-libs/battle/test/decision.test.mjs
+
+      - name: Write non-sensitive test summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Battle Live Test (DeepSeek)"
+            echo
+            echo "- Environment: `battle-live-test`"
+            echo "- Scope: one real Call A request followed by one real Call B request"
+            echo "- Credential value and provider response bodies are not written to the summary"
+            echo
+            if [[ "${{ job.status }}" == "success" ]]; then
+              echo "**Result: passed**"
+            else
+              echo "**Result: failed** — inspect the preceding test step for the sanitized failure category."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
