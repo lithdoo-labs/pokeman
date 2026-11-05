@@ -935,6 +935,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - incomplete response / timeout / abort / malformed response 均正确处理。
 - 保留各 profile 的实际延迟、Plan acceptance、correction、战术表现与样本量记录，记录最终选择理由；不设预设数值及统计显著性门槛。
 - 普通 CI 不依赖真实 Provider credential；真实 Provider 测试显式 opt-in。
+- 真实 DeepSeek 测试验证所需的 `DEEPSEEK_API_KEY` **必须从测试执行进程的环境变量中读取**（`process.env.DEEPSEEK_API_KEY`），不得硬编码在源代码、配置文件、测试 fixture、命令参数或日志中，也不得提交到仓库。未提供有效环境变量时跳过真实 Provider 测试并明确记录原因；不影响无需凭据的单元测试和普通 CI。
 
 
 ## 10. 预计代码影响面
