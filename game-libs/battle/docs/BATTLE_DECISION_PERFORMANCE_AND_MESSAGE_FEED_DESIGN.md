@@ -597,7 +597,8 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 - 不通过每条消息创建 RenderNode。
 - 不让 Message Feed 的 DOM 更新调用 Simulation 或 Decision。
 - Activity Panel 是 Battle View 的唯一战斗消息 UI，由 PokeMan composition 管理，接受同一个 Feed 中的事实事件与 AI 策略文本；不再另外创建 Decision 文本临时覆盖层。外层布局与 map-scoped 尺寸观测组件要能先于 BattlePresentation 初始化而存在，Battle 关闭时统一销毁。
-- Panel 通过 Feed subscription 接收有界消息快照或增量；Panel 只读，不拥有消息写入权。
+- PokeMan 的 `Feed.subscribe` 发生在子系统 / composition 侧，不能假定 Browser Web Component 可以直接调用该内存对象。由 PokeMan-owned **UI-only RenderDomain** 将有界 Feed 快照映射为一个稳定的 Activity Panel RenderNode 的 RenderData 更新；Browser 组件通过现有 Renderer RenderData 投递显示，只读、无写入 Feed 权限。**每条消息不新增 RenderNode**，不改变 Battle gameplay `RenderProjection` 或 World RenderDomain。UI 更新失败只影响消息 Panel，不影响 Battle。
+- 提前创建的布局尺寸报告节点可与 Activity Panel 同属这个 PokeMan-owned UI-only RenderDomain（例如 `battle:layout` / `battle:activity` 两个稳定 key）；Battle World RenderDomain 仍由 BattlePresentation 自己拥有。发送 `battle.viewport.request` 只面向已存在的布局节点，不发送给尚未初始化的 World 节点。
 - World / HUD 与 Activity Panel 不共享必须原子成功的更新事务。
 - Panel 的格式化、DOM 更新和滚动逻辑失败时，只影响 Panel。
 - 消息监听器应只做轻量入队；实际 DOM 更新由 UI 自己批量调度，避免同步渲染阻塞 Runtime。
@@ -819,7 +820,7 @@ Gate：每一种 Simulation 消息都有明确 reducer 提交点；Runtime 事�
 - Decision trigger reason 元数据，但不传给 LLM。
 - Runtime lifecycle messages、Tick messageFacts 与 Call A 可见策略消息的统一排序；无效/过期请求不会进入 Feed。
 - listener / subscriber 异常隔离。
-- PokeMan Message Feed append-only 实现。
+- PokeMan Message Feed append-only 实现；PokeMan-owned UI-only RenderDomain 将单 Feed 的有界快照更新到稳定 Panel RenderNode，而不向 gameplay RenderProjection 添加消息。
 - 最近 N 条消息的有界缓存。
 - runtime.run() 之前完成消息监听注册。
 
