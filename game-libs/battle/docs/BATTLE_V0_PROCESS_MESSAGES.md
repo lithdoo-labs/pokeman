@@ -1,65 +1,59 @@
-# Battle v0 过程消息输出补充说明
+# Battle v0 AI 过程文本：统一消息流补充说明
 
 > 状态：**ADDITIVE PROPOSAL / NON-AUTHORITATIVE / NOT YET IMPLEMENTED**
 >
-> 本文只定义如何把现有 Decision 流程中已经产生的可见文本作为过程消息展示给玩家。它不修订 Battle gameplay、DecisionPort、Simulation、Replay 或 Presentation v0 的既有权威契约。若本文与现有冻结文档产生冲突，以现有冻结文档为准。
+> 主设计：[Battle 决策性能与战斗消息流设计方案](./BATTLE_DECISION_PERFORMANCE_AND_MESSAGE_FEED_DESIGN.md)。
+>
+> 本文只规定如何复用 Call A 已产生的 visible `strategyMemo`，并把它与 Runtime / Simulation 的玩家可感知事件写进**同一条 Battle Message Feed**。它不修订 Battle gameplay、DecisionPort、Simulation Plan、Replay 或 Presentation v0 权威契约；遇到 v0 冻结 gameplay 冲突时以冻结契约为准。
 
-## 1. 目标与边界
+## 1. 唯一消息面板
 
-目标只有一个：
-
-> 在现有 Battle / Decision 流程执行期间，把 AI 已经产生的过程文本展示给玩家；不改变这次 Decision 最终返回的 Plan，也不改变 Battle 如何验证、执行或结算 Plan。
-
-本补充**不**引入新的 gameplay contract，不改变现有流程顺序，也不要求增加新的 Battle State。
-
-## 2. 直接复用现有 Decision 输出
-
-当前 `BATTLE_V0_DECISION.md` 已冻结的 workflow：
+Battle View 上半部分右侧只有一个 Activity Panel：
 
 ```text
-DecisionRequest
-      ↓
-Call A — Analyze + Strategize
-      ↓
-visible assistant output_text
-      ↓
-strategyMemo: string
-      ├─ 传给现有 Call B
-      └─ 作为过程消息输出给玩家（新增的旁路）
-      ↓
-Call B — Materialize
-      ↓
-existing PlanSubmission parser
-      ↓
-existing DecisionCompletion
-      ↓
-Simulation-owned Decision Inbox
-      ↓
-existing validation / correction / execution
+【小红】开始分析局势……
+【小明】发动雷电术。
+【小红】受到 15 点伤害。
+【小红】思考结束：当前距离敌人三格，应先靠近再进攻。
+【小红】决定向敌人移动。
 ```
 
-Call A 已经要求返回 `SITUATION` 与 `STRATEGY` 两个可见部分；adapter 当前将完整 visible output 保存为一个 opaque UTF-8 `strategyMemo` string，再传给 Call B。
+每条是独立追加的历史事件，统一按 Runtime Message Dispatcher 的 `sequence` 排序，最新置顶；各 Actor 的文字自然交错。显示采用本地 `【{actorName}】{description}` 字符串模板，系统消息用 `【系统】`。具体模板、滚动、容量和 Battle 关闭后立即清理的规则由主设计定义。
 
-过程消息直接复用这一个 `strategyMemo`：
+**不创建第二个临时 AI 提示层，不把 Call A 文字当作 Thinking 状态卡，也不通过 RenderEvent 单独投递一份过程消息。**
 
-- 不新增 LLM call；
-- 不改变 Call A / Call B 的顺序、prompt、schema 或请求参数；
-- 不解析、重写或删减 `strategyMemo`；
-- Call B 仍收到原来完全相同的 `strategyMemo`；
-- 不把 Call A 输出写入 `PlanSubmission` 或 `DecisionCompletion`；
-- 不读取或展示 provider 的 hidden `reasoning` / `reasoning_text` item。
+## 2. 直接复用已存在的 Call A 输出
 
-因此，这里展示的是 Call A 已经生成的**可见文本**，不是模型内部隐藏推理。
+现有冻结工作流保持不变：
 
-当前 provider request 固定 `stream = false`。所以本补充输出的是 Call A 完成后的一条完整过程消息，不是 token-by-token streaming；不为实现实时 token streaming 而修改现有 transport 或 provider request。
+```text
+DecisionPort.decide(request, signal)
+  → Call A: Analyze + Strategize
+  → visible assistant output_text / strategyMemo: string
+       ├─ 原样传入既有 Call B
+       └─ 可选 processMessageObserver(request, strategyMemo)
+              → Runtime 检查仍有效、玩家可见的 request
+              → decision.analysis_completed
+              → 同一 Runtime Message Dispatcher / Feed / Panel
+  → Call B: Materialize
+  → 既有 PlanSubmission parser
+  → 既有 DecisionCompletion
+  → Simulation Inbox / 校验 / correction / execution
+```
 
-## 3. 唯一新增的 Decision 接口是可选 observer，不是新的数据结构
+- 不增加 LLM call，不改变 Call A / Call B 的顺序、prompt、schema、参数和 `stream: false` 策略。
+- `strategyMemo` 为 Call A 已生成的**可见** `SITUATION` / `STRATEGY` 文本；不得读取 provider hidden `reasoning` / `reasoning_text`。
+- Call B 继续接收与原实现**字节内容一致**的完整字符串；不得为 UI 的文案模板、长度限制或换行而修改它。
+- `decision.analysis_completed` 只表示 Call A 获得了可见策略文本。字符串模板中的“思考结束”是分析阶段结束，不代表 Call B 已结束、Plan 已被接受或动作已执行。
+- UI 只按**纯文本**展示非权威内容，过滤不适当的控制字符，提供长度/溢出保护；不将它解释成 HTML/Markdown，也不显示凭据、Prompt、原始 Provider body 或内部 reasoning。
+- `decision.accepted` 仍仅由 Simulation 在 `acceptPlan` 后生成，不能从文本推断；不能根据策略文本推进 Battle。
 
-保留以下现有接口与数据结构不变：
+## 3. 最小可选 observer 接口
+
+既有以下接口及结构原样保留：
 
 ```ts
 DecisionPort.decide(request, signal): Promise<DecisionCompletion>
-
 DecisionRequest
 DecisionCompletion
 PlanSubmission
@@ -67,125 +61,63 @@ PlanRejectReason
 DecisionFailure
 ```
 
-在 concrete `DeepSeekDecision` 上增加一个**可选的第二构造参数**，仅用于接收过程消息：
+只对 concrete `DeepSeekDecision` 增加一个**可选的第二构造参数**：
 
 ```ts
 const processMessageObserver = (request: DecisionRequest, message: string): void => {
-  // non-blocking presentation notification
+  runtime?.reportDecisionAnalysis(request, message);
 };
-
-new DeepSeekDecision({ transport }, processMessageObserver)
+new DeepSeekDecision({ transport }, processMessageObserver);
 ```
 
-第二参数命名为 `processMessageObserver`；observer 的概念签名为：
+`processMessageObserver` 是 concrete Decision 的旁路输出，不属于 `DecisionPort`，不得增加 `DecisionCompletion`、`PlanSubmission`、`DecisionWorkflowResult` 字段或调整 `DeepSeekDecisionOptions` 的现有必填键。
+
+- observer 缺省时，Decision 行为与当前 v0 完全一致。
+- 只在 Call A 成功获得非空完整 visible strategyMemo、且自身 AbortSignal 未取消后调用一次。
+- Call A 失败、abort 或空输出时不调用；observer 同步执行、不得 await；throw 必须隔离，不影响 Call B / Decision 结果。
+- correction attempt 虽然仍使用同一个 concrete Decision workflow，但它属于内部修正；主设计第一版**不将 correction / prefetch / retry 的 Strategy Memo 显示给玩家**。可在 observer 层交付给 Runtime，由 Runtime 按该 request 的 trigger reason 统一筛选，避免两处建立不一致的展示逻辑。
+
+## 4. 统一 Runtime 分发与过期检查
+
+主设计定义非权威接入口：
 
 ```ts
-(request: DecisionRequest, message: string) => void
+interface BattleRuntime {
+  onMessage(listener: (message: BattleMessage) => void): () => void;
+  reportDecisionAnalysis(request: DecisionRequest, strategyMemo: string): void;
+}
 ```
 
-约束：
+`reportDecisionAnalysis` 是供受信任的 PokeMan composition 传入 Decision 观察结果的 best-effort 接口，不是 Simulation gameplay command；它不修改 Battle State、Decision Inbox、Replay、RenderProjection 或 Request 生命周期。
 
-- 这是 concrete Decision implementation 的可选输出回调，不属于 `DecisionPort`；
-- 不改变 `DeepSeekDecisionOptions` 的现有字段；
-- 不改变 `decide(request, signal)` 的参数或返回值；
-- 不增加 `DecisionWorkflowResult`、`DecisionCompletion` 或任何新的 Battle DTO 字段；
-- 现有 `new DeepSeekDecision({ transport })` 调用继续有效；
-- observer 缺省时，Decision 行为与当前实现完全一致；
-- observer 同步调用、不得被 await；observer throw 必须被隔离，不得改变 Decision 成功/失败结果；
-- 只在 Call A 成功提取出非空 visible output 后调用一次；Call A 失败、请求已 abort 或没有合法 visible output 时不发送；
-- correction 是新的既有 `DecisionRequest` / `decide()` attempt，因此它可以输出自己的过程消息；不改变 Simulation correction ownership。
+Runtime 在追加 `decision.analysis_completed` 前，必须校验：
 
-observer 只接收现有 request 与一个 string，不定义 `DecisionReason`、`DecisionRationale` 或新的 message DTO。
+1. Battle 仍然存活且尚未结束，当前 requestId、actorId 与 generation 对应仍有效的 Decision 请求。
+2. 请求未 abort、未 stale，确实属于已发布 `decision.started` 的玩家可感知轮次（initial、damaging_hit、plan_exhausted、plan_failed）。
+3. 同一有效请求没有重复发布过分析完成消息，策略文本为完整、非空的 visible 输出。
+4. 该事件与既有 Runtime Events、Simulation Facts 由**同一个 Dispatcher 分配 sequence / id / elapsedMs**，观察者异常被隔离。
 
-## 4. 复用现有 RenderEvent 输出到 Battle View
+不满足条件则静默丢弃；旧请求受击取消后即使 Call A 迟到，也不能写入 Feed，不需要更新或删除旧的“开始分析”消息。策略消息与其他 Actor 的已提交攻击、伤害和移动事件可以交错；以真实发布顺序记录，不能事后插回旧位置。
 
-过程消息是 Presentation-only、non-authoritative、transient event。使用 LoomRealm 已有能力：
+`processMessageObserver` 只把已经完成的可见文本转交 Runtime，**不会**触发一次新的决策、改变 Reason、创建额外 Request 或影响任何已有 Plan 校验。
 
-```text
-DeepSeekDecision optional observer
-        ↓
-BattlePresentationHandler.emitProcessMessage(text)
-        ↓
-existing RenderDomain.emit(...)
-        ↓
-existing render.event
-        ↓
-WebProjector.deliverRenderEvent(...)
-        ↓
-lr-battle-view.receiveRenderEvent(...)
-        ↓
-Battle View 内的临时消息提示
-```
+## 5. 与 Presentation、Message Frame 和关闭生命周期的关系
 
-约定：
+- PokeMan composition 在 `runtime.run()` 前订阅 `onMessage`，把三类来源统一写进同一个有界、追加式 Message Feed，再由同一个 Activity Panel 读取和显示。
+- 过程文本不再通过 `BattlePresentationHandler.emitProcessMessage`、`battle.process-message` 或 `lr-battle-view.receiveRenderEvent` 建立**单独的瞬时提示**；这些是被主设计统一 Feed 取代的旧提案路径，不作为本轮实现要求。
+- Activity Panel 不属于 Battle gameplay RenderProjection，也不修改 Battle State；表现层故障不得影响 Simulation、Decision、BattleResult 或正常 Battle 关闭。
+- 现有 `frame.call("message", prompt)` 仅保留 Host background / Decision circuit 等需要玩家操作的暂停、继续、退出交互。战斗日志和策略文字不创建 Message Frame、不等待玩家点击、不改变 Battle pause 状态。
+- 本轮只保存 Battle 运行期间的有界消息历史。Battle 关闭（`Runtime.close` / Frame 清理）时取消订阅并清空 Feed，不提供战后历史阅读或 Replay 重建。
 
-- 目标节点仍是现有 `battle:view`；
-- Event name 使用 `battle.process-message`；
-- payload 只携带 `{ text: string }`；
-- `lr-battle-view` 在自身 Shadow DOM 内显示临时消息；可由新消息替换当前提示；
-- 不新增 RenderDomain、RenderNode、slot、Panel 或 HUD node；
-- 不改变 `BattleViewRenderData`、`BattleHudRenderData`、Render Tree 或 viewport geometry；
-- 不调用 `domain.update()` 来伪造 gameplay/visual state；
-- 不递增 `visualEpoch`；RenderEvent 本身不修改 RenderDomain revision/state；
-- 不等待 Renderer ACK、paint 或 UI 消费结果。
+## 6. 最低验证要求
 
-Render Update v1 的 Event 已经是 ordered / transient / non-authoritative / no-replay。若 view 尚未建立、已关闭或事件不再适用，消息可以丢弃；不重放、不重试，也不影响 Battle。
+1. observer 缺省、抛错、Call A 失败 / abort / 空输出时，原 DecisionCompletion 与 Call B 行为不变。
+2. Call A 成功时 observer 收到与传给 Call B 字节一致的 strategyMemo；不暴露 hidden reasoning。
+3. 每次玩家可感知、仍有效的 Call A 最多一条 `decision.analysis_completed`；prefetch / correction / retry 不显示孤立策略文本。
+4. stale generation、Request abort、Battle close 后迟到的文本被丢弃，不在 Feed 中插入新的“思考结束”消息。
+5. 战斗事实与策略消息共用同一 sequence、同一 `【Actor】` 模板及右侧 Activity Panel，不出现第二个临时 UI。
+6. `decision.analysis_completed` 不得替代 `decision.accepted`；Plan 校验、Replay v1、pause / resume、BattleResult 不变。
+7. UI 以 textContent 等安全纯文本方式显示 AI 输出；长文本、未知 Actor ID 和消息面板故障不影响 Battle。
+8. Battle 关闭后消息与订阅全部释放；不修改已有 `Message Frame` 的交互语义。
 
-`BattlePresentationHandler.emitProcessMessage(text)` 是具体 Browser Presentation handler 的 additive helper；它不是 `PresentationPort` 的新必需方法，Simulation 不依赖它。
-
-## 5. 与现有 Message Frame 的区别
-
-现有 PokeMan `Message Frame` 继续只承担需要玩家操作的交互，例如：
-
-- Host background 后的继续 / 退出；
-- Decision circuit pause 后的重试 / 退出。
-
-它仍然使用现有：
-
-```text
-frame.call("message", prompt)
-→ child Message Frame
-→ player action
-→ { messageKey, actionId }
-```
-
-过程消息不调用 `frame.call("message")`，不创建子 Frame，不等待玩家确认，不暂停或恢复 Battle。它只是 Battle View 上的一次性提示。
-
-## 6. 不得改变的既有语义
-
-| 既有部分 | 本补充的处理 |
-|---|---|
-| `DecisionPort` | 完全不变 |
-| `DecisionRequest` / `DecisionCompletion` | 字段与语义完全不变 |
-| `PlanSubmission` / `PlanRejectReason` | 完全不变 |
-| Call A / Call B | 顺序、次数、prompt、schema、transport policy 完全不变 |
-| Simulation Tick / reducer / Decision Inbox | 完全不变 |
-| Plan validation / correction / accepted-plan pipeline | 完全不变 |
-| Decision availability circuit / pauseReason | 完全不变 |
-| Replay / BattleSnapshot / BattleResult | 不保存过程消息 |
-| Message Frame | 继续用于阻塞式玩家交互，不承载过程消息 |
-| Presentation Render Tree / RenderData ABI | 完全不变 |
-
-尤其禁止：
-
-- 把 message 或 rationale 塞进 `PlanSubmission`；
-- 把 message 塞进 `DecisionCompletion.completed`；
-- 让 Simulation 根据 message 文本分支；
-- 把过程消息当成 Plan 已被接受、行动已执行或 Battle 已结算的证明；
-- 用过程消息覆盖 `PlanRejectReason`、`DecisionFailure` 或 `BattlePauseReason`；
-- 将过程消息写入 Replay、Shared State 或 authoritative RenderData。
-
-## 7. 最低验证要求
-
-1. observer 缺省时，现有 DeepSeekDecision tests 与输出保持不变；
-2. Call A 成功时，observer 收到与传给 Call B **字节内容一致**的完整 `strategyMemo`；
-3. Call A 失败 / abort / 空输出时，不发送策略文本；
-4. observer throw 不改变最终 `DecisionCompletion`；
-5. Call B 仍按原 schema 生成并解析 `PlanSubmission`；
-6. correction attempt 仍由 Simulation 发起，并可单独输出对应过程消息；
-7. `render.event` 只到现有 `battle:view`，不修改 RenderDomain state/revision、`visualEpoch` 或 Replay；
-8. `lr-battle-view` 使用 `receiveRenderEvent` 显示文本，不改变 Render Tree / RenderData ABI；
-9. 消息不创建 Message Frame、不等待用户输入，也不暂停 Battle；
-10. Frame abort、Presentation close 或事件不适用时，迟到消息被丢弃且不产生 gameplay side effect。
-
-本补充实现完成前，当前代码仍没有 Decision process-message observer，也没有 `lr-battle-view.receiveRenderEvent` 处理器；不得把本文的 proposed behavior 描述成已经实现或通过 qualification。
+> **实施状态：未落地。** 当前代码尚无可选 observer、`reportDecisionAnalysis` 或统一 Feed 事件桥接；不得将本文当成已完成资格验证的实现说明。
