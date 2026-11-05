@@ -84,14 +84,14 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 
 ### 3.1 布局
 
-**所有设备统一采用左右并排布局，不提供抽屉、覆盖层或布局模式切换。**
+**在 PokeMan 当前明确支持的游戏分辨率与宽高比范围内，统一采用左右并排布局；不提供抽屉、覆盖层或布局模式切换。**
 
 - 左侧：战斗地图、角色和现有 HUD（World）。
 - 右侧：Battle Message Feed（Activity Panel）。
 - Activity Panel 宽度为 Battle View 可用内容宽度的 **32%**，最大宽度 **600px**。
 - World 占用扣除 Activity Panel 后的全部剩余宽度。
 - 宽度按 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不按浏览器窗口外框计算；availableContentWidth 指扣除 Battle View 外层 padding 与两列间距后的可分配宽度。
-- 不额外设置固定最小宽度；窄屏下仍保持并排，Panel 内容在自身区域内换行和滚动，不切换成抽屉或覆盖层。
+- 本方案不新增或扩大 PokeMan 的分辨率支持范围；仅对项目当前支持的游戏分辨率与宽高比范围承诺上述布局。未被游戏支持的极端尺寸不属于本功能验收范围，不要求通过压缩布局、抽屉或覆盖层适配。
 - Activity Panel 的消息列表独立纵向滚动，不改变 World 的滚动和战斗状态。
 
 宽度计算：
@@ -107,6 +107,8 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 | 1000px | 320px | 680px |
 | 1600px | 512px | 1088px |
 | 2400px | 600px（达到上限） | 1800px |
+
+分辨率范围沿用 PokeMan 现有的游戏支持范围和项目测试基线。本方案不自行指定新的最小 / 最大分辨率或宽高比；实现与验收应覆盖现有支持范围内的代表性尺寸，不能把“所有可能的 viewport 尺寸”当作要求。若仓库没有集中记录该范围，应沿用当前游戏实际运行与 QA 使用的 viewport 预设，不由 Issue Agent 擅自扩展支持承诺。
 
 右侧消息面板是战斗画面的独立 UI 区域，不是 RenderProjection 的一部分，也不是 AI 状态面板。
 
@@ -569,13 +571,13 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 - 消息监听器应只做轻量入队；实际 DOM 更新由 UI 自己批量调度，避免同步渲染阻塞 Runtime。
 - Panel 的销毁与 Runtime 的结束分离：battle.ended 到达后保留最后一屏；即使 PresentationPort.close() 关闭 World renderer，也不得销毁外层 Battle View shell 或 Activity Panel。只有玩家离开 / Battle View 真正销毁时，才 unsubscribe 并 clear Feed。
 
-布局是固定的左右并排布局，所有设备一致：
+在 PokeMan 当前支持的游戏分辨率与宽高比范围内，布局固定为左右并排：
 
 - 左侧 World：战斗地图、角色和现有 HUD，占用剩余宽度。
 - 右侧 Activity Panel：宽度为 Battle View 可用内容宽度的 32%，最大 600px。
 - 计算规则：panelWidth = min(availableContentWidth × 0.32, 600px)；worldWidth = availableContentWidth - panelWidth。availableContentWidth 是扣除 Battle View 外层 padding 与两列间距后的可分配宽度。
-- 不提供抽屉、覆盖层、移动端替代布局或断点切换。
-- 不额外设置固定最小宽度；窄屏下仍保持并排，Panel 内容在自身区域内换行和独立滚动。
+- 在上述受支持范围内，不提供抽屉、覆盖层、移动端替代布局或断点切换。
+- 不为未支持的极端分辨率增加额外适配；本方案不改变游戏原有的分辨率支持边界。
 - 宽度以 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不以浏览器窗口外框计算。
 - Camera / logical viewport 必须按扣除 Panel 后的 World 实际宽度重新计算；Panel 宽度变化不能通过挤压或覆盖的方式遮挡战场。
 
@@ -744,7 +746,7 @@ Streaming 可以作为后续独立实验：
 - 冻结 movement intent 与 motion segment 的区别、planId 关联方式和中断语义。
 - 冻结 BattleMessage union、BattleResult payload、sequence / elapsedMs 语义。
 - 冻结 Feed 生命周期：battle.ended 后保留，Battle View 销毁时清理。
-- 冻结固定并排布局：Panel 宽度 32%，最大 600px，World 使用剩余宽度；不存在抽屉或覆盖层模式。
+- 冻结受支持分辨率范围内的固定并排布局：Panel 宽度 32%，最大 600px，World 使用剩余宽度；不增加抽屉或覆盖层模式，也不扩大游戏原有分辨率支持范围。
 - 冻结 Call A 指标采集边界和 v0 / 新 profile 版本边界。
 
 Gate：所有事件都有唯一权威来源、触发时机、顺序和展示规则；不得出现 Active Decisions、thinking state、request lifecycle UI 等状态面板设计。
@@ -795,14 +797,14 @@ Gate：Feed 不包含 Active Request / Thinking State / Request Cancellation UI 
 
 - Battle View 右侧 Message Panel。
 - Panel 宽度按可用内容宽度的 32% 计算，最大 600px；World 使用剩余宽度。
-- 所有视口尺寸下保持并排，不增加抽屉、覆盖层或模式切换。
+- 在 PokeMan 当前支持的分辨率与宽高比范围内保持并排，不增加抽屉、覆盖层或模式切换；不要求适配游戏未支持的极端尺寸。
 - 最新消息置顶。
 - 历史滚动和新消息提示。
 - 消息模板、Actor / Skill 名称映射。
 - reduced motion 和基本无障碍支持。
 - Camera / logical viewport 按 World 实际宽度计算。
 
-Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD；窄屏也不切换布局模式。
+Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD；在项目当前支持范围的代表性 viewport 下布局符合 32% / 600px 规则。不把未支持的极端尺寸纳入验收，也不因此引入额外布局模式。
 
 ### Phase 5 — 完整战斗验收
 
@@ -883,9 +885,9 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - 用户阅读旧消息时不被强制滚回顶部。
 - 长战斗消息缓存始终有界。
 - Activity Panel DOM / formatter 出错不会导致 Battle Simulation 失败。
-- 所有视口尺寸下始终保持左右并排。
+- 在 PokeMan 当前支持的游戏分辨率与宽高比范围内始终保持左右并排。
 - Panel 宽度等于 Battle View 可用内容宽度的 32%，但不超过 600px；World 使用剩余宽度。
-- 不出现抽屉、覆盖层或布局模式切换。
+- 不出现抽屉、覆盖层或布局模式切换；未支持的极端尺寸不属于本功能验收范围。
 - Camera / logical viewport 使用扣除 Panel 后的 World 实际宽度。
 - Battle ended 后最后消息仍可见；Battle View 销毁后清理 subscription、DOM listener 和缓存引用。
 
@@ -935,7 +937,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 8. **Runtime 统一分配 message ID / sequence / elapsedMs；sequence 决定顺序。**
 9. **Call A 性能实验与 Message Feed 完全解耦。**
 10. **Replay v1 不因消息窗口而被隐式修改。**
-11. **所有设备使用同一左右并排布局；Panel 为可用内容宽度的 32%，最大 600px；不提供抽屉或覆盖层模式。**
+11. **在 PokeMan 当前支持的游戏分辨率与宽高比范围内使用同一左右并排布局；Panel 为可用内容宽度的 32%，最大 600px；不提供抽屉或覆盖层模式，也不扩大既有分辨率支持范围。**
 12. **Message Feed / Panel 故障不能影响核心战斗。**
 13. **不显示模型 hidden reasoning、Provider 原始错误或未经 Simulation 验证的行动结果。**
 
@@ -957,7 +959,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - Message Feed 不维护 AI request state，不参与 Simulation。
 - runtime.run() 前完成消息订阅；battle.ended 后 Feed 保留，Battle View 销毁时才清理。
 - Activity Panel 不与 World / HUD 共用必须原子成功的更新事务。
-- 所有视口宽度下均为固定左右并排布局；Panel 为 Battle View 可用内容宽度的 32%，最大 600px，World 使用剩余宽度；不存在抽屉、覆盖层或模式切换。
+- 在 PokeMan 当前支持的游戏分辨率与宽高比范围内均为固定左右并排布局；Panel 为 Battle View 可用内容宽度的 32%，最大 600px，World 使用剩余宽度；不存在抽屉、覆盖层或模式切换；未支持的极端尺寸不属于本功能验收范围。
 - Replay v1、BattleResult、Pause / Resume / Cancel 和战后 Settlement 无回归。
 - Panel / Feed / Metrics Sink 故障均不会影响核心战斗。
 
