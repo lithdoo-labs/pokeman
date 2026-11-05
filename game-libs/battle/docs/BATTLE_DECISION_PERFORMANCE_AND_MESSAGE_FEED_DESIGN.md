@@ -90,7 +90,7 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 - 右侧：Battle Message Feed（Activity Panel）。
 - Activity Panel 宽度为 Battle View 可用内容宽度的 **32%**，最大宽度 **600px**。
 - World 占用扣除 Activity Panel 后的全部剩余宽度。
-- 宽度按 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不按浏览器窗口外框计算。
+- 宽度按 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不按浏览器窗口外框计算；availableContentWidth 指扣除 Battle View 外层 padding 与两列间距后的可分配宽度。
 - 不额外设置固定最小宽度；窄屏下仍保持并排，Panel 内容在自身区域内换行和滚动，不切换成抽屉或覆盖层。
 - Activity Panel 的消息列表独立纵向滚动，不改变 World 的滚动和战斗状态。
 
@@ -126,7 +126,7 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 - 用户正在阅读旧消息时，新消息到达不能强制抢回滚动位置。
 - 用户位于列表顶部时，新消息可以自然出现在顶部。
 - 用户不在顶部时，可以显示轻量“有新消息”提示；这只是列表阅读体验，不是 Battle 或 AI 状态。
-- Battle 进入 ended / settled 后，保留 Feed 和最终消息，供玩家阅读。
+- Runtime 发布 battle.ended 后，保留 Feed 和最终消息，供玩家阅读。
 - 只有 Battle View 真正销毁时，才清理 Feed、订阅和 DOM 资源；Runtime 结束或 close 不得提前清空 Feed。
 
 ### 3.4 消息表现
@@ -337,11 +337,6 @@ type BattleMessage =
       readonly reason: "unavailable";
     })
   | (BattleMessageBase & {
-      readonly type: "decision.failed";
-      readonly actorId: string;
-      readonly reason: "unavailable";
-    })
-  | (BattleMessageBase & {
       readonly type: "movement.started";
       readonly actorId: string;
       readonly movementIntentId: string;
@@ -474,8 +469,9 @@ Runtime 负责发布：
 
 - decision.started：在真正调用 DecisionPort 前发布；先检查 command 携带的内部 trigger reason，只对玩家可感知原因发布。
 - decision.failed：仅在 Runtime 消费到 session_fatal 失败记录、即将以 source: "decision" 结束 Battle 时发布一次；普通 attempt_failure 只参与现有重试 / circuit-breaker 逻辑。
-- battle.paused / battle.resumed：根据真实生命周期转换发布，不根据浏览器可见性自行猜测。
-- battle.ended：在 #finish 提交最终 BattleResult 后发布一次，必须早于 run() Promise resolve；payload 携带完整 result。
+- battle.paused：仅在 Runtime 从 running 真正转换到 paused 时发布，并携带实际 pause reason。
+- battle.resumed：仅在 Runtime 从 paused 真正转换回 running 时发布；created / initializing 首次进入 running 不算 resumed。
+- battle.ended：在 #finish 提交最终 BattleResult 后发布一次，必须早于 PresentationPort.close() 和 run() Promise resolve；payload 携带完整 result。这样即使 World renderer 需要关闭，外层 Battle View 与 Activity Panel 仍有机会展示最终消息。
 
 实现约束：
 
@@ -536,7 +532,8 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 1. 调用 processOneTick，得到 Simulation 输出。
 2. 持久化现有 Replay Tick / Decision records，并完成现有 Replay 校验。
 3. 将本 Tick 已提交的 messageFacts 按数组顺序发布；Runtime Dispatcher 为每条事实分配 id、sequence 和 elapsedMs。
-4. 处理失效请求的内部 abort；不产生 UI 状态清理消息。
+4. 如果本 Tick 的 decisionRecords 中包含 consumeOutcome = session_fatal，在 battle.ended 之前发布一次 decision.failed；不暴露内部错误码。
+5. 处理失效请求的内部 abort；不产生 UI 状态清理消息。
 5. 更新现有 World / HUD Presentation。
 6. 处理 terminal / Decision health。
 7. 调用新的 Decision commands。每个玩家可感知的新决策轮次，在真正调用 DecisionPort 前发布 decision.started。
@@ -565,12 +562,12 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 - Message Feed 不属于 RenderProjection。
 - 不通过每条消息创建 RenderNode。
 - 不让 Message Feed 的 DOM 更新调用 Simulation 或 Decision。
-- Activity Panel 作为 Battle View 的独立 UI 子组件 / slot，由 PokeMan composition 挂载。
+- Activity Panel 作为 Battle View 的独立 UI 子组件 / slot，由 PokeMan composition 挂载；外层 Battle View shell 的生命周期由 PokeMan composition 管理，不与 World 的 PresentationPort 生命周期绑定。
 - Panel 通过 Feed subscription 接收有界消息快照或增量；Panel 只读，不拥有消息写入权。
 - World / HUD 与 Activity Panel 不共享必须原子成功的更新事务。
 - Panel 的格式化、DOM 更新和滚动逻辑失败时，只影响 Panel。
 - 消息监听器应只做轻量入队；实际 DOM 更新由 UI 自己批量调度，避免同步渲染阻塞 Runtime。
-- Panel 的销毁与 Runtime 的结束分离：battle.ended 到达后保留最后一屏；Battle View 销毁时再 unsubscribe 并 clear Feed。
+- Panel 的销毁与 Runtime 的结束分离：battle.ended 到达后保留最后一屏；即使 PresentationPort.close() 关闭 World renderer，也不得销毁外层 Battle View shell 或 Activity Panel。只有玩家离开 / Battle View 真正销毁时，才 unsubscribe 并 clear Feed。
 
 布局是固定的左右并排布局，所有设备一致：
 
