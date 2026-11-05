@@ -854,7 +854,7 @@ non-null SubsystemScope.viewport
 
 #### 新增右侧 Panel 的布局扩展 — PROPOSED，尚未实现
 
-如果 Battle View 增加右侧 Panel（例如承载额外的 Battle 信息），它仍然属于同一个完整 Battle viewport，不构成新的 LoomRealm viewport，也不需要 map-scoped adapter。
+如果 Battle View 增加右侧 Panel（例如展示 Decision Reason 等只读 Battle 信息），它仍然属于同一个完整 Battle viewport，不构成新的 LoomRealm viewport，也不需要 map-scoped adapter。本节只定义几何分区；Panel 的 Message/Decision 数据契约必须独立定义，不得从 viewport ABI 推导或塞入 PlanSubmission。
 
 布局应由 Battle Presentation 从完整 viewport 派生：
 
