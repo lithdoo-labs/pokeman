@@ -86,8 +86,8 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 
 **保留 Battle View 原有的上下两部分结构；只将上半部分改为左右并排。在 PokeMan 当前明确支持的游戏分辨率与宽高比范围内，不提供抽屉、覆盖层或布局模式切换。**
 
-- Battle View 下半部分保持现有布局和尺寸计算规则，不因 Message Panel 改造而重新布局。
-- 上半部分左侧：原有战斗地图及其现有 HUD / World 内容。
+- Battle View 下半部分继续显示原有 HUD，保持已有内容与交互，不随右侧 Message Panel 改为左右布局；实现时仅需将 HUD 的展示区域从地图视口中独立出来。
+- 上半部分左侧：战斗地图 World（不包含下半部分 HUD）。
 - 上半部分右侧：Battle Message Feed（Activity Panel），高度与上半部分一致。
 - Activity Panel 宽度为上半部分可用内容宽度的 **32%**，最大宽度 **600px**。
 - 左上战斗地图占用上半部分扣除 Activity Panel 后的全部剩余宽度。
@@ -107,29 +107,31 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 
 - `mapViewport.width` = 左上战斗地图容器的实际内容宽度（即 `mapWidth`）。
 - `mapViewport.height` = 左上战斗地图容器的实际内容高度（即上半部分可用高度）。
-- Battle Presentation 的 tile viewport、logical viewport、Camera、scale 和 tile projection 全部基于这组 `mapViewport` 尺寸计算。
+- Battle Presentation 的 tile viewport、logical viewport、Camera、scale 和 tile projection 全部基于这组 `mapViewport` 尺寸计算。**mapViewport.height 已经是扣除下方 HUD 后的纯地图区域高度，不能再扣一次 HUD/barHeight。**
 - 不得使用整个 Battle View、整个上半部分（尚未扣除 Panel）或浏览器 viewport 的宽高代替左上地图容器尺寸。
 
-布局层级：
+布局由 **Battle View 组件内部** 管理（布局容器和插槽/内部子容器由组件创建并排布，不依赖不同 RenderDomain 的根节点自动形成父子关系）：
 
 ```text
-Battle View
-├── 上半部分（沿用现有上层区域）
-│   ├── 左上：原有战斗地图（Map Viewport）
+Battle View 组件布局
+├── 上半部分
+│   ├── 左上：地图 World（Map Viewport，不含 HUD）
 │   └── 右上：Activity Panel
-└── 下半部分（现有区域，保持不变）
+└── 下半部分：现有 HUD（内容与交互不变）
 ```
+
+PokeMan 负责把对应地图、消息和 HUD 内容接入组件的相应区域；**组件本身负责实际 CSS 父子结构与左右/上下分栏。** 这是 UI 实现职责，不新增 LoomRealm 的自动布局或跨 RenderDomain 父子装配机制。
 
 几何尺寸由**组件实际测量并通过现有双向消息机制上报**，而不是子系统自行推算：
 
-1. PokeMan 布局层按 `panelWidth = min(upperContentWidth × 0.32, 600px)` 决定右上 Panel 与左上地图容器的 CSS 几何尺寸；下半部分保持不变。左上地图容器是唯一尺寸观测源，可以是提前建立的布局壳 / 地图容器组件；不得等 BattlePresentation 的首次 RenderProjection 才创建可测量容器。
+1. Battle View 组件内部的 CSS 布局按 `panelWidth = min(upperContentWidth × 0.32, 600px)` 决定上半部分右侧 Panel 与左上地图容器的几何尺寸；下半部分保留现有 HUD。左上地图容器是唯一尺寸观测源，应由组件在 BattlePresentation 首次 RenderProjection 前创建，不能等地图开始渲染才出现可测量容器。
 2. 地图容器组件用 `ResizeObserver` 测量自身实际 **content box**，首次连接且已具备正整数 CSS 逻辑宽高时上报一次；后续尺寸变化时上报。忽略 0 / 非法值、相同尺寸的重复通知；不根据上次 RenderData 的 viewport 字段反向构造测量值。
 3. **组件 → 子系统** 复用 LoomRealm Web Presentation v3：`context.emitCustomEvent("battle.viewport.changed", { width, height }, { broadcast: "top-frame", channel: "pokeman.battle.viewport" })`。子系统在 Battle Frame 已就绪时先注册 `scope.presentationEvents.createListener({ frame, channels: ["pokeman.battle.viewport"] })`，并验证来源确属本场 Battle 的地图容器、尺寸合法、Frame 未结束；不把此物理环境事件当成玩家 Input。
 4. **子系统 → 组件** 复用 `RenderDomain.emit({ targetKey: "battle:layout", name: "battle.viewport.request", data: {} })`，由地图布局组件的 `receiveRenderEvent` 接收后重新测量并上报。请求仅表示“请重新上报”，不是同步查询或必达 RPC；当前 Live RenderNode 的实际 key 可与 `battle:layout` 对齐，不能把请求投给尚未创建的节点。
-5. PokeMan composition 把最后一份有效上报缓存到**仅供本场 Battle Presentation 使用**的 map-scoped Viewport adapter，其 `current / subscribe` 满足现有 Viewport 契约。首次有效地图尺寸到达后再开始依赖它的 BattlePresentation 初始化；如果布局容器依赖 BattlePresentation 的首次渲染才能存在，会发生初始化死锁，必须先建立独立可测量的布局壳。
-6. `calculateTileViewportLayout`、Camera、scale、tile projection 与 `lr-battle-view.viewportWidth / viewportHeight` 共用此地图尺寸。当前 `lr-battle-view` CSS 的 `100vw/100vh` 和 `receiveRenderData()` 写入的自身 inline width/height 不得覆盖由外层布局拥有的地图容器尺寸；RenderData 只用于内部绘制。
+5. PokeMan composition 把最后一份有效上报缓存到**仅供本场 Battle Presentation 使用**的 map-scoped Viewport adapter，其 `current / subscribe` 满足现有 Viewport 契约。Battle View 组件先建立可测量的内部地图容器，首次有效地图尺寸到达后再继续依赖它的 BattlePresentation 初始化，避免首帧互相等待。
+6. 现有 `calculateTileViewportLayout(w, h)` 会从 `h` 自动减去 `barHeight`（原实现把 HUD 放在同一 viewport 中）；**不能直接把组件实测的纯地图高度传给它而重复扣减**。实现时在 Presentation 层把地图几何计算与 HUD 高度计算拆开：地图 tiles/Camera/scale/projected content 使用组件上报的完整 `mapViewport.width / height`，HUD 仍显示在下半部分，保持原有展示内容与交互。必要时调整 tile layout helper 和对应 `lr-battle-view` RenderData 校验/渲染的几何字段，使地图内部 contentHeight 等于实测地图高度；不能伪造全窗高度来绕过旧校验，也不能改变 Simulation/Replay 权威。`receiveRenderData()` 不得用自身 inline width/height 反向覆盖组件的布局尺寸。
 7. `top-frame` 的反向事件具有 currentness/Frame gating 和 transient/no-replay 语义：子 Frame（如暂停 Message）位于栈顶时的尺寸通知可能丢失。Battle 恢复 Top Frame 后主动发出一次 `battle.viewport.request` 恢复最新值；Frame/RenderNode 已关闭时静默丢弃迟到通知，取消订阅与观察器。不轮询、不假造尺寸，也不以反向通知修改 Battle gameplay authority。
-8. Activity Panel 与地图 RenderProjection 分离；消息面板的具体 DOM 容器不能影响 map-scoped 真实 content box 的观测。
+8. Activity Panel 与地图 gameplay RenderProjection 分离，但它们的**页面布局由 Battle View 组件统一完成**。消息面板的具体 DOM 不能反向影响 map-scoped 真实 content box 的观测。
 
 分辨率范围沿用 PokeMan 现有的游戏支持范围和项目测试基线。本方案不自行指定新的最小 / 最大分辨率或宽高比；实现与验收应覆盖现有支持范围内的代表性尺寸，不能把“所有可能的 viewport 尺寸”当作要求。若仓库没有集中记录该范围，应沿用当前游戏实际运行与 QA 使用的 viewport 预设，不由 Issue Agent 擅自扩展支持承诺。
 
@@ -598,7 +600,7 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 - 不让 Message Feed 的 DOM 更新调用 Simulation 或 Decision。
 - Activity Panel 是 Battle View 的唯一战斗消息 UI，由 PokeMan composition 管理，接受同一个 Feed 中的事实事件与 AI 策略文本；不再另外创建 Decision 文本临时覆盖层。外层布局与 map-scoped 尺寸观测组件要能先于 BattlePresentation 初始化而存在，Battle 关闭时统一销毁。
 - PokeMan 的 `Feed.subscribe` 发生在子系统 / composition 侧，不能假定 Browser Web Component 可以直接调用该内存对象。由 PokeMan-owned **UI-only RenderDomain** 将有界 Feed 快照映射为一个稳定的 Activity Panel RenderNode 的 RenderData 更新；Browser 组件通过现有 Renderer RenderData 投递显示，只读、无写入 Feed 权限。**每条消息不新增 RenderNode**，不改变 Battle gameplay `RenderProjection` 或 World RenderDomain。UI 更新失败只影响消息 Panel，不影响 Battle。
-- 提前创建的布局尺寸报告节点可与 Activity Panel 同属这个 PokeMan-owned UI-only RenderDomain（例如 `battle:layout` / `battle:activity` 两个稳定 key）；Battle World RenderDomain 仍由 BattlePresentation 自己拥有。发送 `battle.viewport.request` 只面向已存在的布局节点，不发送给尚未初始化的 World 节点。
+- Battle View 布局组件管理内部的地图、Activity Panel 和下方 HUD 容器及其 CSS 尺寸；PokeMan composition 负责把不同来源的内容接入组件布局，不假定不同 RenderDomain 的根节点会被框架自动嵌套。提前创建的布局尺寸报告节点可与 Activity Panel 同属 PokeMan-owned UI-only RenderDomain（例如 `battle:layout` / `battle:activity` 两个稳定 key）；Battle World RenderDomain 仍可由 BattlePresentation 独立拥有。发送 `battle.viewport.request` 只面向已存在的布局节点；组件本身承担页面布局，RenderDomain 只承担数据/事件投递。
 - World / HUD 与 Activity Panel 不共享必须原子成功的更新事务。
 - Panel 的格式化、DOM 更新和滚动逻辑失败时，只影响 Panel。
 - 消息监听器应只做轻量入队；实际 DOM 更新由 UI 自己批量调度，避免同步渲染阻塞 Runtime。
@@ -606,14 +608,14 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 
 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，保留 Battle View 原有上下结构，只将上半部分划分为左右两列：
 
-- 上半部分左侧：原有战斗地图及其现有 HUD / World 内容。
+- 上半部分左侧：原有战斗地图 World（HUD 位于下方，不进入地图的 mapViewport）。
 - 上半部分右侧：Activity Panel，与上半部分等高。
-- 下半部分：保持现有布局、尺寸计算和行为，不因 Message Panel 改造而改变。
+- 下半部分：沿用原有 HUD 内容与交互；仅确保布局组件将其作为独立底部区域呈现，不把其高度再次从上半部分地图实测高度扣除。
 - Activity Panel 宽度为上半部分可用内容宽度的 32%，最大 600px；左上地图使用剩余宽度。
 - 计算规则：panelWidth = min(upperContentWidth × 0.32, 600px)；mapWidth = upperContentWidth - panelWidth。upperContentWidth 是扣除上半部分自身 padding 与列间距后的可分配宽度。
 - 左上地图的 viewport width / height 必须取左上地图容器自身的实际内容宽高；不得使用整个 Battle View、未扣除 Panel 的上半部分宽度或浏览器 viewport 尺寸。
 - 当前 BattlePresentationBuilder 从 `scope.viewport` 读取尺寸并订阅变化；PokeMan composition 必须将地图组件通过 `battle.viewport.changed` 实测上报的尺寸转换成局部 Viewport adapter，注入 BattlePresentation。若现有 `scope.viewport` 仍是全局窗口尺寸，不得直接复用它代替地图局部尺寸。子系统可以向预先存在的布局组件发送 `battle.viewport.request` 重新获取报告；它不要求 Framework 新增通用 Viewport RPC。
-- `calculateTileViewportLayout`、Camera、scale、tile projection，以及 `lr-battle-view` 的 `viewportWidth / viewportHeight` 必须使用同一份 map-scoped viewport 尺寸；所有 resize 更新都来自左上地图容器的 ResizeObserver / request-report，且布局不得被 `lr-battle-view` 的内联渲染尺寸反向覆盖。
+- 地图 tiles/Camera/scale/projection 使用同一份 map-scoped **纯地图** viewport；现有 `calculateTileViewportLayout` 的内置 HUD 高度扣减须在该路径上移除或拆分，保证无重复扣高。下方 HUD 独立布局且行为不变；resize 更新来自地图容器 ResizeObserver / request-report，`lr-battle-view` 的内联渲染尺寸不能反向覆盖布局。
 - 在上述受支持范围内，不提供抽屉、覆盖层、移动端替代布局或断点切换；不为未支持的极端分辨率增加额外适配。
 
 ## 7. Call A 性能优化方案
@@ -837,9 +839,9 @@ Gate：Feed 不包含 Active Request / Thinking State / Request Cancellation UI 
 - 历史滚动和新消息提示。
 - 统一的 `【Actor】描述` 字符串模板、Actor / Skill 名称映射；Battle 事实与 Call A 可见策略消息都显示在同一 Panel，不再渲染单独的临时 Decision 文本。
 - reduced motion 和基本无障碍支持。
-- Camera / logical viewport 按左上地图容器 ResizeObserver 实际测量的内容宽高计算；组件首次报告、变化主动报告，子系统 RenderEvent 请求重报；不得按整个 Battle View 或上半部分未扣除 Panel 前的尺寸计算。
+- Camera / logical viewport 按组件内部左上地图容器 ResizeObserver 实测的纯地图内容宽高计算；`calculateTileViewportLayout` 不得对这份高度再次扣除 HUD；组件首次报告、变化主动报告，子系统 RenderEvent 请求重报。HUD 留在下方，不按整个 Battle View 或上半部分未扣除 Panel 前的尺寸计算。
 
-Gate：Panel 不依赖 AI 请求结束事件，不影响地图 / HUD / 下半部分；在项目当前支持范围的代表性 viewport 下，上半部分符合 32% / 600px 规则，地图 Presentation 使用左上地图容器自身的实际宽高。不把未支持的极端尺寸纳入验收，也不因此引入额外布局模式。
+Gate：Panel 不依赖 AI 请求结束事件，不影响地图 gameplay 或 HUD 交互；在项目当前支持范围的代表性 viewport 下，由 Battle View **组件内部**完成上半部分 32% / 600px 分栏及下方 HUD 布局，地图 Presentation 使用左上地图容器自身的完整实测高度、无 HUD 重复扣减；不扩展支持的极端尺寸或额外布局模式。
 
 ### Phase 5 — 完整战斗验收
 
@@ -852,7 +854,7 @@ Gate：Panel 不依赖 AI 请求结束事件，不影响地图 / HUD / 下半部
 - Replay v1 回归。
 - Pause / Resume / Cancel / Battle End 回归。
 - Panel 故障隔离和 Feed 生命周期测试。
-- 固定并排布局的多视口测试、组件尺寸初次上报 / ResizeObserver 变化 / 子系统请求重报 / 子 Frame 遮挡后恢复重报 / 非法尺寸与相同尺寸去重。
+- 固定并排布局的多视口测试：验证组件内部左侧地图、右侧消息、下方 HUD 的实际区域；纯地图高度不被 tile layout helper 重复扣掉 HUD；覆盖首次上报 / ResizeObserver 变化 / 子系统请求重报 / 子 Frame 遮挡后恢复重报 / 非法尺寸与相同尺寸去重。
 - Call A 性能与策略质量测试记录、选定 profile 及理由。
 
 Gate：消息正确性、战斗回归和布局约束通过；保留性能测试记录并完成合适 profile 的选择，不要求达到数值硬门槛。
@@ -923,7 +925,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，Battle View 保持原有上下结构，上半部分始终左右并排。
 - 上半部分右侧 Panel 宽度等于上半部分可用内容宽度的 32%，但不超过 600px；左上地图使用剩余宽度；下半部分保持现有布局。
 - 不出现抽屉、覆盖层或布局模式切换；未支持的极端尺寸不属于本功能验收范围。
-- Camera / logical viewport 使用左上地图容器自身的实际内容宽度和高度；验证初始可测量布局先建立、`battle.viewport.changed` 首次/resize 正向报告、`battle.viewport.request` 反向请求重报及 top-frame 恢复补报，BattlePresentationBuilder 接收的确实是 map-scoped viewport 而非全局 viewport；渲染的自身 inline width/height 不得反向控制实际布局。
+- Camera / logical viewport 使用 **Battle View 组件内部左上地图容器**的实际 content box，验证下方 HUD 作为独立区域、`calculateTileViewportLayout` 不重复扣 HUD 高度。验证组件先建立可测量地图容器、`battle.viewport.changed` 首次/resize 上报、`battle.viewport.request` 请求重报及 top-frame 恢复补报，BattlePresentationBuilder 接收 map-scoped viewport 而非全局 viewport，渲染的自身 inline width/height 不得反向控制组件布局。
 - battle.ended 在关闭前按规则发布；Battle 关闭后 Feed 为空、subscription / DOM listener / 缓存引用已清理，不要求战后仍可见最后消息。
 
 ### 9.5 性能测试
@@ -950,12 +952,12 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 | game-libs/battle/src/simulation/tick.ts | 生成有序 SimulationMessageFact，并在 TickOutput 暴露 messageFacts |
 | game-libs/battle/src/simulation/runtime.ts | Dispatcher、sequence / elapsedMs、Decision started、Battle lifecycle 消息、非权威 Call A observer 的有效请求过滤和 Runtime timing |
 | game-libs/battle/src/decision.ts 或新的版本化 Decision 实现 | Call A profile、Call A / B timing、Provider usage 与 Metrics Sink |
-| game-libs/battle/browser/battle.browser.js | 唯一右侧 Message Panel、`【Actor】` 字符串模板的纯文本显示；地图组件的实测尺寸消息和尺寸请求处理（布局壳可由独立 UI 组件实现） |
-| game-libs/battle/browser/battle.css | 上半部分左右分栏；右上 Panel 宽度 32% / 最大 600px、消息样式、独立滚动；地图容器占上半部分剩余宽度 |
+| game-libs/battle/browser/battle.browser.js | Battle View 组件内部左地图、右 Activity Panel、下方 HUD 的 CSS 布局；`【Actor】` 纯文本消息；地图容器实测尺寸通知 / 请求重报与避免 RenderData 反向覆盖布局 |
+| Battle 组件内部样式（现有 browser 模块或按需拆 CSS） | 上半部分左右分栏，下半部分原有 HUD；右上 Panel 32% / 最大 600px；地图视口只测纯地图区域，不被下方 HUD 二次扣高 |
 | subsystems/battle.mjs | runtime.run() 前订阅 onMessage、创建 DeepSeek processMessageObserver、组装单 Feed / Panel、接入局部 Viewport 与 Presentation Events、管理 Battle 关闭清理 |
 | game-libs/battle/test/decision.test.mjs | 性能 profile、usage、Metrics Sink 和 Provider 测试 |
 | game-libs/battle/test/simulation.test.mjs | messageFacts、movement intent、产生时机和顺序 |
-| game-libs/battle/test/presentation.test.mjs | Feed / Panel 隔离和固定布局测试 |
+| game-libs/battle/test/presentation.test.mjs | Feed / Panel 隔离、纯地图 viewport 计算不重复扣 HUD 和组件内部固定布局测试 |
 | game-libs/battle/test/browser-e2e.test.mjs | 消息排序、滚动、固定并排布局和多视口 E2E |
 
 如果 Feed 逻辑需要独立文件，可在 PokeMan composition 层增加轻量模块；不要把 Feed 放入 Simulation Core，也不要为了它创建新的 PresentationPort。
@@ -995,7 +997,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - Message Feed 不维护 AI request state，不参与 Simulation。
 - runtime.run() 前完成消息订阅；Battle 关闭（Runtime.close / Battle Frame 清理）时取消订阅并清空 Feed，不保留战后消息。
 - Activity Panel 不与 World / HUD 共用必须原子成功的更新事务；消息文本与 gameplay RenderProjection 不混用。
-- 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，Battle View 保留原有上下结构，只将上半部分固定为左右并排；右上 Panel 为上半部分可用内容宽度的 32%，最大 600px，左上地图使用剩余宽度；下半部分保持现状。地图组件首次就绪和尺寸变化时经 Frame-targeted Presentation Event 上报 content box，子系统可经 RenderDomain.emit 请求重新上报，首次初始化无循环等待；不存在抽屉、覆盖层或模式切换。
+- 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，由 **Battle View 组件内部**完成上下区域、上半部分左右分栏：右上 Panel 为上半部分可用内容宽度的 32%，最大 600px，左上纯地图使用剩余宽度，下半部分保留 HUD。地图组件上报纯地图 content box，Presentation 不得再次扣除 HUD 高度；子系统可经 RenderDomain.emit 请求重报，首次初始化无循环等待；不依赖不同 RenderDomain 根节点自动成为父子节点，不新增抽屉、覆盖层或模式切换。
 - Replay v1、BattleResult、Pause / Resume / Cancel 和战后 Settlement 无回归。
 - Panel / Feed / Metrics Sink 故障均不会影响核心战斗。
 
