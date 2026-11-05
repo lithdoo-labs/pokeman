@@ -55,17 +55,30 @@ Battle Message Feed 是一份**战斗过程中发生事件的只读、追加式�
 
 AI 请求的取消、超时、generation 校验和 stale completion 丢弃，仍然由现有 Runtime / Simulation 内部负责。这些属于游戏运行正确性，不属于消息窗口职责。
 
+
 ### 2.3 “开始思考”消息的准确语义
 
-当 Runtime 真正发起一次 DecisionPort 请求时，发布一条消息：
+Message Feed 记录的是**玩家可感知的决策轮次**，不是底层 Provider 调用日志。
 
-> 角色 A 开始分析战场情报……
+Runtime 在每次真正调用 DecisionPort 时，都必须知道这次请求由什么原因触发；但只有玩家需要感知的决策轮次才发布一条 decision.started 消息。触发原因由 Simulation command 的内部元数据传递给 Runtime，不加入模型输入，也不要求 DecisionPort 或 LLM 理解 UI 文案。
 
-它表示“系统已为角色 A 发起一次决策请求”，是一个已经发生的事实。
+第一版玩家可感知的触发原因：
 
-它不表示模型的内部推理过程，也不承诺该请求一定会成功。
+- initial：角色开始分析战场。
+- damaging_hit：角色受击后重新评估行动。
+- plan_exhausted：当前计划执行完毕，角色开始规划下一步。
+- plan_failed：原计划无法继续，角色开始重新规划。
 
-一次 DecisionPort 请求内部可能包含 Call A 和 Call B。**消息只在整个 Decision 请求发起时产生一次**，不能把 Call A、Call B 分别播报成两次思考。
+以下属于内部执行细节，不单独产生新的“开始思考”消息：
+
+- prefetch_after_materialize：提前准备后续行动。
+- correction：模型返回的方案被 Simulation 拒绝后，内部发起的修正请求。
+- 同一决策轮次中的自动重试。
+- Call A 与 Call B 两个模型调用。
+
+decision.started 表示“系统开始为角色处理一个玩家可感知的决策轮次”，不表示模型的内部推理过程，也不承诺该轮次一定成功。
+
+内部 correction 不创建第二张思考卡片，也不修改第一条消息。如果修正过程最终导致玩家可感知的失败，才按失败规则发布独立事件。这样消息流保留真实发生的关键事情，但不会变成 Provider 请求日志或重复通知。
 
 ## 3. 玩家体验与界面行为
 
@@ -104,6 +117,7 @@ AI 请求的取消、超时、generation 校验和 stale completion 丢弃，仍
 - sequence 是排序依据；显示时间仅用于辅助阅读。
 - 同一 Tick 内的消息顺序由 Simulation 明确产生，不依赖对象属性顺序或异步 Promise 偶然完成顺序。
 
+
 ### 3.3 历史消息行为
 
 - 消息只追加，不编辑、不关闭、不回写。
@@ -112,7 +126,8 @@ AI 请求的取消、超时、generation 校验和 stale completion 丢弃，仍
 - 用户正在阅读旧消息时，新消息到达不能强制抢回滚动位置。
 - 用户位于列表顶部时，新消息可以自然出现在顶部。
 - 用户不在顶部时，可以显示轻量“有新消息”提示；这只是列表阅读体验，不是 Battle 或 AI 状态。
-- Battle 实例结束或关闭时，释放该实例的消息 Feed。
+- Battle 进入 ended / settled 后，保留 Feed 和最终消息，供玩家阅读。
+- 只有 Battle View 真正销毁时，才清理 Feed、订阅和 DOM 资源；Runtime 结束或 close 不得提前清空 Feed。
 
 ### 3.4 消息表现
 
@@ -129,76 +144,108 @@ AI 请求的取消、超时、generation 校验和 stale completion 丢弃，仍
 
 ## 4. 消息事件模型
 
+
 ### 4.1 事件来源
 
-只允许两个权威来源：
+只允许两个权威来源，不能由 Browser 根据状态变化自行猜测事件：
 
 | 来源 | 负责发布的事实 |
 |---|---|
-| Battle Runtime | Decision 请求真正发起、Battle 生命周期中值得玩家看到的事件 |
-| Battle Simulation | Plan 被接受、移动开始、技能开始/结算、伤害、击倒等已提交的战斗事实 |
+| Battle Runtime | 玩家可感知的决策轮次开始、最终决策失败、Battle 暂停 / 恢复 / 结束 |
+| Battle Simulation | Plan 被接受、移动意图开始 / 完成 / 中断 / 失败、技能开始 / 结算、伤害、击倒等已提交的战斗事实 |
 
-Browser / Panel 不得自行推断游戏事实。
+边界规则：
+
+- decision.started 属于 Runtime，因为只有 Runtime 知道何时真正调用 DecisionPort，以及这次调用的触发原因。
+- decision.accepted 属于 Simulation，因为只有 Simulation 完成 Plan 校验并调用 acceptPlan 后，才能确认方案已被接受。
+- 移动、技能、伤害和击倒属于 Simulation；Runtime 和 UI 不得通过 Snapshot / RenderProjection diff 推断这些事实。
+- decision.failed 和 Battle 生命周期消息由 Runtime 根据已经消费的 Decision 结果或真实生命周期转换发布。
+- Runtime 负责把两类来源统一排序并发布，但不得篡改 Simulation 事实。
+
 
 ### 4.2 第一版消息类型
 
 第一版只覆盖玩家能够理解、对战斗叙事有价值的事件：
 
-| 事件类型 | 触发事实 | 消息示例 |
-|---|---|---|
-| decision.started | Runtime 即将调用 DecisionPort | 角色 A 开始分析战场情报…… |
-| decision.accepted | Simulation 验证并接受 Plan | 角色 A 决定使用火焰斩 |
-| movement.started | Simulation 提交一次有意义的移动开始 | 角色 A 向目标位置移动 |
-| movement.completed | Simulation 确认到达该次移动的最终目的地 | 角色 A 已抵达目标位置 |
-| movement.interrupted | Simulation 确认移动被打断 | 角色 A 的移动被打断 |
-| skill.started | Actor 正式进入技能施放 / windup | 角色 B 发动雷电术 |
-| skill.resolved | Simulation 完成技能判定 | 雷电术命中目标 / 未命中 / 被防护 |
-| damage.applied | HP 伤害结算已提交 | 角色 A 受到 15 点伤害 |
-| actor.defeated | Actor 正式进入 defeated / dead 状态 | 角色 C 被击倒 |
-| battle.paused / resumed / ended | Battle Runtime 完成对应生命周期转换 | 战斗已暂停 / 战斗继续 / 战斗结束 |
+| 事件类型 | 权威来源 | 触发事实 | 消息示例 |
+|---|---|---|---|
+| decision.started | Runtime | 玩家可感知的决策轮次真正开始 | 角色 A 开始分析战场情报…… |
+| decision.accepted | Simulation | Simulation 验证并接受完整 Plan | 角色 A 决定前往高地，并使用火焰斩攻击角色 B |
+| movement.started | Simulation | 一次移动意图的第一段移动正式开始 | 角色 A 开始向目标位置移动 |
+| movement.completed | Simulation | 移动意图的最终目的地已抵达 | 角色 A 已抵达目标位置 |
+| movement.interrupted | Simulation | 已开始的移动意图未能完成 | 角色 A 的移动被打断 |
+| movement.failed | Simulation | 移动意图尚未开始便无法启动 | 角色 A 无法前往目标位置 |
+| skill.started | Simulation | Actor 正式进入技能施放 / windup；瞬发技能也要记录开始 | 角色 B 发动雷电术 |
+| skill.resolved | Simulation | Simulation 完成技能判定 | 雷电术命中目标 / 未命中 / 被防护 |
+| damage.applied | Simulation | HP 伤害结算已提交 | 角色 A 受到 15 点伤害 |
+| actor.defeated | Simulation | Actor 首次进入 defeated / dead 状态 | 角色 C 被击倒 |
+| decision.failed | Runtime | 决策最终失败，且结果已被 Runtime 确认会影响战斗推进 | 角色 A 暂时无法制定行动方案 |
+| battle.paused / resumed | Runtime | Battle 真正进入暂停 / 恢复状态 | 战斗已暂停 / 战斗继续 |
+| battle.ended | Runtime | Runtime 提交最终 BattleResult | 战斗结束：我方胜利 |
 
-事件类型应按实际游戏事实精简。第一版不要求把每一个 Tick、每一次寻路内部步骤、每一个数值变化都展示成消息，避免消息刷屏。
+补充约束：
+
+- decision.accepted 必须表达一个完整 Plan；Plan 可以同时包含移动路径、转向和技能意图，不能把移动与技能设计成互斥选项。
+- movement.started / completed / interrupted 描述一次完整移动意图，不描述每个寻路格或每个 Tick 的内部移动片段。
+- battle.ended 必须携带最终 BattleResult，以区分胜利、失败、平局式同时击倒、取消和系统失败。
+- 第一版不展示每个 Tick、寻路内部步骤、每次数值变化或 Provider 内部调用，避免消息刷屏。
+
 
 ### 4.3 事件触发规则
 
-- decision.started：在 Runtime 真正调用 DecisionPort 前发布，不在 Simulation 预先生成 command 时发布。
-- decision.accepted：必须在 Simulation 完成 Plan 校验并接受之后发布。模型返回文本本身不代表 Plan 已接受。
-- movement.started：在 Simulation 正式提交移动动作时发布。
-- movement.completed：只有 Actor 到达本次移动意图的最终目的地时发布；路径中的每个中间格不重复播报。
-- movement.interrupted：以 Simulation 确认的中断事实为准。
-- skill.started：在 Actor 正式进入 windup / 技能动作时发布，不以 AI 计划使用技能为依据。
-- skill.resolved：在技能判定完成后发布，准确区分 hit、miss、immune 等结果。
-- damage.applied：HP 已完成结算后发布，damage 和 hpAfter 使用 Simulation 的最终值。
-- actor.defeated：Actor 首次进入死亡状态时发布一次。
+- decision.started：Runtime 在真正调用 DecisionPort 前发布；仅对第 2.3 节列出的玩家可感知触发原因发布。Call A / Call B 不分别播报；prefetch、correction 和同一轮次内的自动重试不重复播报。
+- decision.accepted：必须在 Simulation 完成 Plan 校验并调用 acceptPlan 后发布。模型返回文本本身不代表 Plan 已接受。
+- movement.started：一个已接受 Plan 的 path 第一次真正开始执行时发布一次。移动意图 ID 使用该 AcceptedPlan 的 planId，不为每个移动片段创建新的玩家可见意图。
+- movement.completed：只有最终路径片段的 move_complete 事件成功提交、Actor 到达 Plan.path 的最终目的地后发布。中间格抵达不发布。
+- movement.interrupted：移动意图已经开始，但在到达最终目的地前被伤害、计划失效或后续路径无法继续而终止时发布。即使 Actor 正好处于两个移动片段之间、当前 action 已是 idle，只要该移动意图尚未完成，也必须能够识别并发布中断。
+- movement.failed：移动意图尚未真正开始，第一段路径就无法启动时发布；此时不应先发布 movement.started。
+- skill.started：Actor 正式进入 windup 时发布；瞬发技能在同一 Tick 内也必须先记录 skill.started，再记录 skill.resolved。
+- skill.resolved：技能判定完成后发布，准确区分 hit、miss、immune、invalid。
+- damage.applied：HP 已完成结算后发布，amount 和 hpAfter 使用 Simulation 的最终值。
+- actor.defeated：Actor 首次进入死亡状态时发布一次，且必须晚于导致其死亡的 damage.applied。
+- decision.failed：仅在 Runtime 已确认该决策最终失败且会影响战斗推进时发布；普通超时重试、Abort、stale completion 不显示。
+- battle.paused / resumed：只在 Runtime 真正完成对应状态转换时发布。
+- battle.ended：在 Runtime 提交最终 BattleResult 时发布一次，携带完整 result；不能把 settled 和后续 close 当成两次结束。
 
-不要将“决定使用技能”“开始施放技能”“技能命中”“造成伤害”合并成一个未经区分的事件。它们是不同时间发生的事实。
+**移动意图与移动片段必须分开建模。** 当前 Simulation 的一个 Plan path 会被拆成多个 Tick / motion segment 执行；而 activePlan 可能在最后一个片段开始时就被清空，Actor 也可能在相邻片段之间短暂处于 idle。因此实现时需要一个轻量的 movement-intent 记录，至少保留 planId、最终目的地和是否已经开始。该记录独立于当前 action segment 和 activePlan 存续，直到移动意图 completed、interrupted 或 failed 才清除。不得只通过 actor.action.type === "moving" 判断整个移动意图是否仍然有效。
+
 
 ### 4.4 受击后重新思考的消息顺序
 
 这是本设计必须通过的核心场景：
 
-战斗中：
-
-1. 角色 A 已经发起过一次 AI 请求，消息流显示“角色 A 开始分析战场情报……”。
+1. 角色 A 已经开始一个玩家可感知的决策轮次，消息流显示“角色 A 开始分析战场情报……”。
 2. 角色 B 正式开始施放攻击，产生 skill.started。
-3. 技能结算，角色 A 受到伤害，产生 damage.applied。
-4. 受击使角色 A 原有的 Decision generation 失效，Runtime 内部取消旧请求。**不修改、不关闭、不删除第 1 条消息，也不需要为 UI 产生 request-cancelled 状态。**
-5. 如果 Runtime 随后为角色 A 发起新的 DecisionPort 请求，再产生一条新的 decision.started：“角色 A 正在根据新的战况重新评估行动……”。
+3. 技能完成判定，产生 skill.resolved（例如命中）。
+4. 角色 A 的 HP 完成扣减，产生 damage.applied。
+5. 如果角色 A 有尚未完成的移动意图，Simulation 产生 movement.interrupted。该消息必须能够覆盖“Actor 当前不在 moving segment，但路径仍未完成”的情况。
+6. Runtime 内部使角色 A 的旧 Decision generation 失效并取消旧请求。**不修改、不关闭、不删除旧思考消息，也不为 UI 产生 request-cancelled 状态。**
+7. 如果 Simulation 随后生成 damaging_hit 决策命令，且 Runtime 真正发起新的 DecisionPort 请求，则产生一条新的 decision.started：“角色 A 正在根据新的战况重新评估行动……”。
 
-最终历史记录中会同时保留旧思考消息、攻击消息、受击消息和新思考消息。它们按真实发生顺序排列。
+最终历史记录保留旧思考消息、技能开始、技能结算、受击、可能的移动中断和新思考消息。消息按真实发生顺序追加，UI 按 sequence 倒序显示。
 
-最新消息置顶时，视觉顺序是第 5、4、3、2、1 条的倒序展示（若取消本身不是玩家可见事件，则不显示第 4 条）。
+注意：第 7 条不是根据“旧请求已取消”推断出来的。只有 Runtime 确实发起新的、玩家可感知的决策轮次时，才产生新消息。
+
 
 ### 4.5 失败、拒绝与内部取消的展示边界
 
-- 内部 stale request 被取消：默认不显示消息。
-- Promise 被 AbortSignal 取消：默认不显示消息。
-- Plan 被拒绝并自动 correction：不必为每次内部校验失败刷屏；如果确实影响玩家理解，可发布一条简短的“行动方案需要调整”消息。
-- 最终 Decision 失败且影响战斗推进：可以发布一条安全、简短的失败消息，例如“角色 A 暂时无法制定行动方案”。
-- 不显示 Provider 原始错误、HTTP body、Prompt、API Key 或 hidden reasoning。
-- Battle 结束、暂停等玩家可感知的生命周期事件可以显示。
+消息策略是“记录玩家值得知道的事件”，不是“把所有内部技术事件都打印出来”。
 
-消息策略是“玩家值得知道的事件”，不是“把所有内部技术事件都打印出来”。
+| 内部情况 | 第一版展示规则 |
+|---|---|
+| stale request 被取消 | 不显示，不修改旧消息 |
+| AbortSignal 取消 | 不显示，不修改旧消息 |
+| prefetch_after_materialize | 不显示，属于后台提前准备 |
+| Plan 被拒绝并自动 correction | 不重复显示“开始思考”；内部修正本身不单独播报 |
+| 普通 attempt failure 后自动重试 | 不显示 |
+| 最终 session-fatal 决策失败并影响战斗 | 可发布一次 decision.failed，使用安全、简短的玩家文案 |
+| Battle 因决策故障进入暂停 | 发布 battle.paused；不暴露 Provider 内部错误 |
+| Battle 结束 | 发布一次 battle.ended，并携带 BattleResult |
+| Presentation / Panel 自身错误 | 不生成伪造的战斗消息；通过隔离的错误处理记录 |
+
+- 不显示 Provider 原始错误、HTTP body、Prompt、API Key 或 hidden reasoning。
+- 不把 requestId、generation、AbortController 或 active request 状态暴露给 Feed。
+- 如果未来产品决定向玩家展示“行动方案需要调整”，应作为明确的玩家可感知事件单独设计；不能把每次内部 correction 自动转换成消息。
 
 ## 5. 数据与架构设计
 
@@ -244,52 +291,89 @@ Battle Simulation               │
 | Message Formatter | 将事件类型和参数转为本地化文案 | 推断未发生的事实 |
 | Activity Panel | 展示消息、排序和滚动 | 订阅 AI 请求生命周期并维护状态 |
 
+
 ### 5.3 Battle Message 类型草案
 
-建议使用 discriminated union，不把长期公共契约定义为任意 Record。
+建议使用 discriminated union，不把长期公共契约定义为任意 Record。以下是契约形状草案，最终以现有 contracts 和 Simulation fact 为准：
 
-~~~ts
+```ts
 type BattleMessageBase = {
   readonly id: string;
   readonly sequence: number;
   readonly tick: number | null;
-  readonly occurredAtMs: number;
+  readonly elapsedMs: number;
 };
+
+type PlayerVisibleDecisionReason =
+  | "initial"
+  | "damaging_hit"
+  | "plan_exhausted"
+  | "plan_failed";
 
 type BattleMessage =
   | (BattleMessageBase & {
       readonly type: "decision.started";
       readonly actorId: string;
+      readonly reason: PlayerVisibleDecisionReason;
     })
   | (BattleMessageBase & {
       readonly type: "decision.accepted";
       readonly actorId: string;
-      readonly intent:
-        | { readonly type: "move"; readonly destination: GridPosition }
-        | {
-            readonly type: "skill";
-            readonly skillId: string;
-            readonly targetActorId: string;
-          };
+      readonly plan: {
+        readonly movement: {
+          readonly destination: GridPosition;
+          readonly stepCount: number;
+        } | null;
+        readonly turn?: Direction;
+        readonly skill: {
+          readonly skillId: string;
+          readonly targetActorId: string;
+        } | null;
+      };
     })
   | (BattleMessageBase & {
-      readonly type: "movement.started" | "movement.completed" | "movement.interrupted";
+      readonly type: "decision.failed";
       readonly actorId: string;
-      readonly from?: GridPosition;
-      readonly to?: GridPosition;
+      readonly reason: "unavailable";
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.started";
+      readonly actorId: string;
+      readonly movementIntentId: string;
+      readonly from: GridPosition;
+      readonly destination: GridPosition;
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.completed";
+      readonly actorId: string;
+      readonly movementIntentId: string;
+      readonly destination: GridPosition;
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.interrupted";
+      readonly actorId: string;
+      readonly movementIntentId: string;
+      readonly destination: GridPosition;
+      readonly reason: "damaging_hit" | "blocked" | "invalidated";
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.failed";
+      readonly actorId: string;
+      readonly destination: GridPosition;
+      readonly reason: MovementFailureReason;
     })
   | (BattleMessageBase & {
       readonly type: "skill.started";
       readonly actorId: string;
       readonly skillId: string;
-      readonly targetActorId?: string;
+      readonly targetActorId: string;
     })
   | (BattleMessageBase & {
       readonly type: "skill.resolved";
       readonly actorId: string;
       readonly skillId: string;
       readonly targetActorId: string;
-      readonly result: "hit" | "miss" | "immune" | "invalid";
+      readonly result: SkillResolveResult;
     })
   | (BattleMessageBase & {
       readonly type: "damage.applied";
@@ -305,42 +389,62 @@ type BattleMessage =
       readonly sourceActorId?: string;
     })
   | (BattleMessageBase & {
-      readonly type: "battle.paused" | "battle.resumed" | "battle.ended";
+      readonly type: "battle.paused";
+      readonly reason: BattlePauseReason;
+    })
+  | (BattleMessageBase & {
+      readonly type: "battle.resumed";
+    })
+  | (BattleMessageBase & {
+      readonly type: "battle.ended";
+      readonly result: BattleResult;
     });
-~~~
+```
 
-这是概念类型，落地时以现有 contracts 和 Simulation fact 形状为准。不要为了追求类型完整而复制一份 Battle State。
+说明：
+
+- decision.accepted 使用一个完整 Plan 摘要，而不是 move / skill 二选一。path 为空时 movement 为 null；存在 path 时 destination 为最后一个路径点；skill 可与 movement 同时存在。
+- movementIntentId 在第一版直接复用 AcceptedPlan.planId；它用于关联同一条路径的开始、完成和中断，不展示给玩家。
+- decision.failed 只表示最终且玩家可感知的失败；不携带 Provider 原始 code 或响应内容。
+- battle.ended 携带 BattleResult，避免 UI 通过 Snapshot 或状态推断胜负。
+- Runtime 发布时补齐 id、sequence、elapsedMs；SimulationMessageFact 本身不负责分配这些字段。
+
 
 ### 5.4 ID、顺序与时间
 
-- sequence 由单场 Battle 的 Runtime 统一分配，严格递增。
-- id 可以由 Battle 实例内的消息序号生成，保证单场唯一。
+- sequence 由单场 Battle 的 Runtime Message Dispatcher 统一分配，严格递增；Runtime Events 与 Simulation Facts 共用同一个序列。
+- id 由 battleId 与 sequence 确定性组合生成，保证单场 Battle 唯一；不依赖随机数或时间戳。
 - tick 对 Simulation 事实填写对应 Tick；Tick 外的 Runtime 事件可以为 null。
-- occurredAtMs 用于 UI 显示时间，不作为 Gameplay authority。
-- sequence 决定顺序，timestamp 不决定顺序。
-- 同一 Tick 的事实顺序由 Simulation 的 messageFacts 数组显式给出。
-- 不依赖 Promise 完成顺序推导战斗事件顺序。
+- elapsedMs 表示本场 Battle 从开始运行至事件发布时经过的单调运行时间，使用 Runtime 的 monotonic clock 计算，并排除暂停期间；它只用于 UI 辅助显示，不作为 Gameplay authority。
+- sequence 是唯一排序依据；tick 和 elapsedMs 不决定消息顺序。
+- 同一 Tick 的 Simulation 事实顺序由 TickOutput.messageFacts 数组显式给出，Runtime 按数组顺序发布。
+- Runtime Events 在其真实触发点同步发布；例如 Tick facts 发布完毕后才调用新的 DecisionPort，因此新的 decision.started 必须排在该 Tick 的伤害 / 中断事实之后。
+- 不依赖对象属性顺序、Replay 数组分组顺序或异步 Promise 偶然完成顺序推导消息顺序。
+
 
 ### 5.5 不可变、有界的 Message Feed
 
 Feed 只需要简单的追加式接口：
 
-~~~ts
+```ts
 interface BattleMessageFeed {
   append(message: BattleMessage): void;
   getSnapshot(): readonly BattleMessage[];
   subscribe(listener: (messages: readonly BattleMessage[]) => void): () => void;
   clear(): void;
 }
-~~~
+```
 
 要求：
 
 - append 只追加，不提供 update / resolve / close / remove 单条消息的 API。
-- 对消息对象及 payload 做必要的不可变保护。
+- Feed 对消息对象及 payload 做必要的不可变保护。
 - Feed 只保留最近 N 条消息，默认 N = 100。
 - 超过容量时只淘汰最旧消息。
-- clear 仅用于 Battle 实例销毁或明确重置，不用于 AI 请求完成。
+- append 由 PokeMan composition 中的 Runtime observer 调用；Activity Panel 只有 getSnapshot / subscribe 权限，不直接写入 Feed。
+- 单个 Feed subscriber 抛错不得阻断其他 subscriber，也不得向 Runtime 传播。
+- Runtime observer 抛错同样必须被隔离，不得影响 Runtime、Simulation 或 BattleResult。
+- clear 仅用于 Battle View 真正销毁或明确重置，不用于 AI 请求完成、Battle settled 或 Runtime.close。
 - Feed 不保存 activeRequest、thinkingActors、requestStatus 等字段。
 - Feed 不拥有 Battle State，也不能通过消息反向改变游戏。
 
@@ -348,64 +452,98 @@ interface BattleMessageFeed {
 
 ## 6. 与现有 Battle Core 的集成
 
+
 ### 6.1 Runtime 事件
 
 当前 Runtime 已有 Decision command invocation、Decision abort、Tick wake 和生命周期转换等明确入口。
 
-建议在现有 BattleRuntime observer surface 上增加消息订阅能力，例如：
+建议在现有 BattleRuntime observer surface 上增加消息订阅能力：
 
-~~~ts
+```ts
 interface BattleRuntime {
   onMessage(listener: (message: BattleMessage) => void): () => void;
 }
-~~~
+```
 
-具体命名可以按现有 contracts 风格调整。
+Runtime 负责发布：
 
-- 在真正调用 DecisionPort.decide() 前发布 decision.started。
-- 每个新的 DecisionPort 请求最多发布一次，不为内部 Call A / Call B 分别发布。
-- Runtime 仍然负责 AbortController、generation、stale completion 和 Decision Inbox。
-- 这些内部机制不向 Feed 暴露状态同步接口。
-- listener 抛错必须被隔离，不得影响 Runtime、Simulation 或 BattleResult。
+- decision.started：在真正调用 DecisionPort 前发布；先检查 command 携带的内部 trigger reason，只对玩家可感知原因发布。
+- decision.failed：仅在最终失败已被 Runtime 确认且会影响战斗推进时发布一次。
+- battle.paused / battle.resumed：根据真实生命周期转换发布，不根据浏览器可见性自行猜测。
+- battle.ended：在 #finish 提交最终 BattleResult 后发布一次，必须早于 run() Promise resolve；payload 携带完整 result。
+
+实现约束：
+
+- 当前 DecisionReason 定义在 Simulation plan command 层。实现时让 RequestDecisionCommand 携带内部 reason 元数据；makeCorrection 使用 correction reason。该 reason 不加入传给模型的 DecisionRequest，不作为 LLM 输入。
+- decision.started 的发布点位于 Runtime 已确认请求有效、AbortController 已建立之后，紧邻 DecisionPort.decide() 调用之前。
+- 每次真正的玩家可感知决策轮次最多发布一次；Call A / Call B、prefetch 和 correction 不重复发布。
+- Runtime 仍然负责 AbortController、generation、stale completion 和 Decision Inbox；这些内部机制不向 Feed 暴露状态同步接口。
+- #finish 发布 battle.ended 后，Feed 保留最后一条消息；Runtime.close 不负责清空 Feed。
+- listener 抛错必须逐个隔离，不得影响 Runtime、Simulation 或 BattleResult。
+- PokeMan 必须在 runtime.run() 之前注册 onMessage listener，避免初始化期间的第一条消息丢失。
+
 
 ### 6.2 Simulation 消息事实
 
-当前 TickOutput 已经包含 Replay Tick、Decision records、RenderProjection 等输出，但现有 Replay facts 不覆盖所有消息需求，例如技能开始和移动最终抵达。
+当前 TickOutput 已经包含 Replay Tick、Decision records、RenderProjection 等输出，但现有 Replay facts 不覆盖所有消息需求，例如技能开始和移动意图最终抵达。
 
-建议为 TickOutput 增加独立的只读事实集合：
+建议为 TickOutput 增加独立的 Simulation-only 事实集合：
 
-~~~ts
+```ts
 interface TickOutput {
   // Existing outputs remain unchanged.
-  readonly messageFacts: readonly BattleMessageFact[];
+  readonly messageFacts: readonly SimulationMessageFact[];
 }
-~~~
+```
 
-要求：
+SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMessage：
 
-- messageFacts 在 Simulation reducer 内产生。
-- 只有已经提交的事实才能进入 messageFacts。
-- messageFacts 不包含 DOM 文案，不依赖 Browser。
+- 包含 decision.accepted、movement、skill、damage、defeat 等 Simulation 事件。
+- **不包含 decision.started、decision.failed、battle.paused、battle.resumed、battle.ended**；这些由 Runtime 发布。
+- 不包含 id、sequence、elapsedMs；这些由 Runtime Dispatcher 统一补齐。
+- 不包含 DOM 文案，不依赖 Browser。
+- 只有已提交的事实才能进入 messageFacts；模型返回、候选 Plan 或未执行意图不能冒充已发生事实。
+- messageFacts 在 reducer 的真实状态转换位置按顺序 push，不能在 reducer 结束后按类型分组拼接。
+- 如果 Tick 处理失败、输出被判定为未提交，则不得发布该次 Tick 的部分 messageFacts。
 - messageFacts 与 ReplayTickRecord 分离，不修改 Replay v1 schema。
 - messageFacts 与 RenderProjection 分离，不把消息塞入渲染投影。
-- 同一 Tick 内的事实按真实 reducer 发生顺序排列。
 - 不从 UI 对 Actor state 做 diff 来猜测“发生了什么”。
+
+具体事实时机：
+
+1. decision.accepted：validatePlan 成功且 acceptPlan 已创建 AcceptedPlan 后产生；payload 摘要保留 movement、turn 和 skill 的组合。
+2. movement.started：第一段移动正式提交时产生；同一 planId 的后续 path segment 不再产生 started。
+3. movement.completed：最终 path segment 的 move_complete 事件提交、Actor 到达最终 destination 后产生。
+4. movement.interrupted：已开始的 movement intent 被伤害或其他失效原因终止时产生，包括当前 Actor action 已短暂回到 idle、但路径尚未走完的情况。
+5. movement.failed：移动 intent 尚未开始，第一段移动就无法启动时产生。
+6. skill.started：Actor 进入 windup 时产生；瞬发技能在同一 Tick 内也要先产生 started。
+7. skill.resolved：技能判定完成后产生。
+8. damage.applied：HP 更新完成后产生，amount 与 hpAfter 必须来自最终结算。
+9. actor.defeated：Actor 首次进入 dead 状态后产生，顺序晚于造成击倒的 damage.applied。
+
+**移动意图状态必须独立于单段移动动作。** 建议在 ActorRuntimeState 或等价 Simulation 内部结构中保留一个轻量 movementIntent：planId、finalDestination、started。它必须跨越多个 motion segment、segment 间 idle 空隙，以及 activePlan 在最后一个 segment 开始时被清空的时刻；仅在 completed / interrupted / failed 时清除。不要为了消息系统改变 Replay v1 或 RenderProjection 的 authority。
+
 
 ### 6.3 Runtime 发布顺序
 
-建议 Runtime 在一次 Tick 处理完成后按以下次序处理：
+一次 Tick 的消息发布必须遵循“Simulation 先提交事实，Runtime 再发布新决策”的顺序：
 
 1. 调用 processOneTick，得到 Simulation 输出。
-2. 持久化现有 Replay Tick / Decision records。
-3. 将本 Tick 已提交的 messageFacts 按数组顺序发布。
-4. 处理失效请求的内部 abort（不产生 UI 状态清理）。
+2. 持久化现有 Replay Tick / Decision records，并完成现有 Replay 校验。
+3. 将本 Tick 已提交的 messageFacts 按数组顺序发布；Runtime Dispatcher 为每条事实分配 id、sequence 和 elapsedMs。
+4. 处理失效请求的内部 abort；不产生 UI 状态清理消息。
 5. 更新现有 World / HUD Presentation。
 6. 处理 terminal / Decision health。
-7. 调用新的 Decision commands；每个真正启动的请求在调用 DecisionPort 前发布 decision.started。
+7. 调用新的 Decision commands。每个玩家可感知的新决策轮次，在真正调用 DecisionPort 前发布 decision.started。
 
-关键是：**先发布受击等已提交事实，再发布受击后新发起的思考消息。**
+关键约束：
 
-如果实际 Runtime 顺序需要调整，应以该顺序作为产品事件顺序约束，并用测试固定下来。
+- 先发布受击、伤害、技能结算和移动中断等已提交事实，再发布受击后新发起的思考消息。
+- Runtime 事件和 Simulation facts 使用同一个 Dispatcher / sequence。
+- 同一 Tick 内以 messageFacts 数组顺序为准；跨 Tick 以 Runtime 实际提交顺序为准。
+- 若 Tick 处理失败或没有形成有效 TickOutput，不得发布半个 Tick 的消息。
+- 若 Panel listener 出错，只影响该 listener；不得中断上述顺序或影响 Battle。
+- 如果实际 Runtime 顺序需要调整，应以这里的业务顺序作为约束，并用测试固定下来。
 
 ### 6.4 与 Replay 的关系
 
@@ -416,18 +554,28 @@ interface TickOutput {
 - Message Feed 是本次运行中的玩家叙事视图；本轮不承诺从 Replay 完整重建相同消息。
 - 如果未来需要 Replay 也显示完整消息，再单独设计 Replay version amendment。
 
+
 ### 6.5 与 Presentation / Browser 的关系
 
 - Message Feed 不属于 RenderProjection。
 - 不通过每条消息创建 RenderNode。
 - 不让 Message Feed 的 DOM 更新调用 Simulation 或 Decision。
 - Activity Panel 作为 Battle View 的独立 UI 子组件 / slot，由 PokeMan composition 挂载。
-- Panel 通过 Feed subscription 接收有界消息快照或增量。
+- Panel 通过 Feed subscription 接收有界消息快照或增量；Panel 只读，不拥有消息写入权。
 - World / HUD 与 Activity Panel 不共享必须原子成功的更新事务。
 - Panel 的格式化、DOM 更新和滚动逻辑失败时，只影响 Panel。
 - 消息监听器应只做轻量入队；实际 DOM 更新由 UI 自己批量调度，避免同步渲染阻塞 Runtime。
+- Panel 的销毁与 Runtime 的结束分离：battle.ended 到达后保留最后一屏；Battle View 销毁时再 unsubscribe 并 clear Feed。
 
-现有 Battle View 当前以 world / HUD 为主要区域。实现时扩展为固定的左右并排布局：左侧 world + HUD，右侧 activity。Activity 不成为新的 Simulation PresentationPort。Activity Panel 宽度按 Battle View 可用内容宽度的 32% 计算，最大 600px；World 使用剩余宽度。所有视口尺寸都保持这一布局，不增加抽屉、覆盖层或断点切换。
+布局是固定的左右并排布局，所有设备一致：
+
+- 左侧 World：战斗地图、角色和现有 HUD，占用剩余宽度。
+- 右侧 Activity Panel：宽度为 Battle View 可用内容宽度的 32%，最大 600px。
+- 计算规则：panelWidth = min(availableContentWidth × 0.32, 600px)；worldWidth = availableContentWidth - panelWidth。
+- 不提供抽屉、覆盖层、移动端替代布局或断点切换。
+- 不额外设置固定最小宽度；窄屏下仍保持并排，Panel 内容在自身区域内换行和独立滚动。
+- 宽度以 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不以浏览器窗口外框计算。
+- Camera / logical viewport 必须按扣除 Panel 后的 World 实际宽度重新计算；Panel 宽度变化不能通过挤压或覆盖的方式遮挡战场。
 
 ## 7. Call A 性能优化方案
 
@@ -469,6 +617,7 @@ DecisionPort.decide()
 - 不通过修改 Call B、Simulation validation 或 Plan authority 来掩盖 Call A 性能问题。
 - 不为了提速而跳过 Plan validation 或允许模型直接输出 HP / Damage / BattleResult。
 
+
 ### 7.3 先测量，再调参
 
 每个 Decision 至少记录：
@@ -481,9 +630,44 @@ DecisionPort.decide()
 - Plan 首次被 Simulation 接受与否。
 - 是否发生 correction，以及最终是否执行成功。
 
-使用 monotonic clock 测量 duration。metrics sink 出错不得影响 Decision。
+**指标采集必须有明确的代码入口。**
 
-禁止记录 API Key、Authorization header、完整 Prompt、原始模型响应或 hidden reasoning。
+当前 DeepSeekTransport.postResponses() 返回 status 和 bodyText；当前 Decision Workflow 解析响应文本后主要返回 Strategy Memo / Plan 文本，没有把 Provider usage 传递到观测层。新版本 Decision 实现应在解析响应时提取 Provider 实际返回的 usage，并将 Call A / Call B 分开记录。Provider 未返回某项 usage 时记录 unknown，不得根据 max_output_tokens 推算实际消耗。
+
+建议在新的、版本化的 Decision implementation 中注入 best-effort Metrics Sink：
+
+```ts
+type DecisionStage = "call_a" | "call_b";
+
+interface DecisionMetric {
+  readonly profileId: string;
+  readonly stage: DecisionStage;
+  readonly durationMs: number;
+  readonly outcome: "success" | "provider_error" | "timeout" | "abort" | "parse_error";
+  readonly httpStatus?: number;
+  readonly usage?: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly reasoningTokens?: number;
+  };
+}
+
+interface DecisionMetricsSink {
+  record(metric: DecisionMetric): void;
+}
+```
+
+同时由 Runtime 侧测量：
+
+- DecisionPort 调用开始到 completion 入 inbox 的时间。
+- completion 入 inbox 到 Simulation 接受 / 拒绝 Plan 的 Tick 延迟。
+- Plan 被接受到第一次实际移动或技能动作开始的 Tick 延迟。
+
+这样可以区分 Provider 慢、Runtime 等待 Tick、Plan 校验失败和行动调度延迟，避免把所有等待都归因于 Call A。
+
+Metrics Sink 必须是非阻塞、best-effort：同步抛错或异步失败都不得影响 Decision、Simulation 或 BattleResult。不得记录 API Key、Authorization header、完整 Prompt、原始模型响应或 hidden reasoning。
+
+本轮性能 profile 和 Metrics Sink 必须通过新的 Decision implementation / version 演进；不得为了加指标而静默改变已冻结的 v0-quality 实现。
 
 ### 7.4 单变量实验
 
@@ -530,67 +714,78 @@ Streaming 可以作为后续独立实验：
 - “角色开始思考”的玩家消息由 Decision 请求发起事件提供，不依赖 streaming。
 - 只有完整响应通过解析和后续 Simulation 校验后，才可能产生 decision.accepted 消息。
 
+
 ## 8. 实施阶段
 
-### Phase 0 — 设计契约确认
+### Phase 0 — 设计契约冻结
 
 交付：
 
 - 确认 Message Feed 是追加式历史消息，而不是状态面板。
-- 确认消息类型、触发时机和不展示的内部事件。
-- 确认 Runtime / Simulation / Feed / Panel 的责任边界。
-- 确认 Call A v0 基线与实验实现的版本边界。
+- 冻结 Runtime Events 与 Simulation Facts 的权威边界。
+- 冻结玩家可见决策触发原因，以及 prefetch / correction / retry 不重复播报的规则。
+- 冻结 movement intent 与 motion segment 的区别、planId 关联方式和中断语义。
+- 冻结 BattleMessage union、BattleResult payload、sequence / elapsedMs 语义。
+- 冻结 Feed 生命周期：battle.ended 后保留，Battle View 销毁时清理。
+- 冻结固定并排布局：Panel 宽度 32%，最大 600px，World 使用剩余宽度；不存在抽屉或覆盖层模式。
+- 冻结 Call A 指标采集边界和 v0 / 新 profile 版本边界。
 
-Gate：不得出现 Active Decisions、thinking state、request lifecycle UI 等状态面板设计。
+Gate：所有事件都有唯一权威来源、触发时机、顺序和展示规则；不得出现 Active Decisions、thinking state、request lifecycle UI 等状态面板设计。
 
 ### Phase 1 — Call A 基线与调参
 
 交付：
 
 - Call A / Call B 分段耗时。
-- Token usage / Provider outcome。
+- Provider usage / outcome（Provider 未提供时标记 unknown）。
+- Runtime 请求到 completion、completion 到 Plan accept 的延迟。
 - 固定 Observation / Battle Seed 测试集。
 - high / low / none（如支持）对照报告。
 - responsive candidate 与质量验收结论。
 
-Gate：新 profile 未通过质量门槛时，不替换 v0-quality 默认值。
+Gate：新 profile 未通过质量门槛时，不替换 v0-quality 默认值；Metrics Sink 失败不能影响战斗。
 
 ### Phase 2 — Message Contract 与 Simulation Facts
 
 交付：
 
-- BattleMessage discriminated union。
-- TickOutput.messageFacts。
-- Decision started / accepted 消息事实。
-- movement / skill / damage / defeat 消息事实。
-- sequence 和同 Tick 事件顺序规则。
+- BattleMessage discriminated union 与 SimulationMessageFact。
+- TickOutput.messageFacts，只包含 Simulation 权威事实。
+- decision.accepted、movement intent、skill、damage、defeat 事实。
+- movementIntent 跨 motion segment 和 idle 间隙的状态跟踪。
+- sequence 之前的同 Tick 事实顺序规则。
 
-Gate：每一种消息都有明确权威来源和提交时机；没有任何 UI 推断事件。
+Gate：每一种 Simulation 消息都有明确 reducer 提交点；Runtime 事件不混入 TickOutput；失败 Tick 不发布部分事实。
 
 ### Phase 3 — Runtime Dispatcher 与 Feed
 
 交付：
 
-- BattleRuntime.onMessage(listener) 或等价 observer surface。
-- Runtime sequence / message ID。
-- listener 异常隔离。
+- BattleRuntime.onMessage(listener) observer surface。
+- Runtime sequence / message ID / elapsedMs。
+- Decision trigger reason 元数据，但不传给 LLM。
+- Runtime lifecycle messages 与 Tick messageFacts 的统一发布顺序。
+- listener / subscriber 异常隔离。
 - PokeMan Message Feed append-only 实现。
 - 最近 N 条消息的有界缓存。
+- runtime.run() 之前完成消息监听注册。
 
-Gate：Feed 不包含 Active Request / Thinking State / Request Cancellation UI 逻辑。
+Gate：Feed 不包含 Active Request / Thinking State / Request Cancellation UI 逻辑；battle.ended 后 Feed 仍可读取。
 
-### Phase 4 — 右侧 Message Panel
+### Phase 4 — 固定并排 Message Panel
 
 交付：
 
-- Battle View 右侧消息面板。
+- Battle View 右侧 Message Panel。
+- Panel 宽度按可用内容宽度的 32% 计算，最大 600px；World 使用剩余宽度。
+- 所有视口尺寸下保持并排，不增加抽屉、覆盖层或模式切换。
 - 最新消息置顶。
 - 历史滚动和新消息提示。
 - 消息模板、Actor / Skill 名称映射。
-- 所有视口尺寸下统一的左右并排布局；Activity Panel 宽度为可用内容宽度的 32%，最大 600px，World 使用剩余宽度。
 - reduced motion 和基本无障碍支持。
+- Camera / logical viewport 按 World 实际宽度计算。
 
-Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD。
+Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD；窄屏也不切换布局模式。
 
 ### Phase 5 — 完整战斗验收
 
@@ -598,10 +793,16 @@ Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD。
 
 - AI vs AI 完整战斗 E2E。
 - 受击后旧请求失效、新请求发起的消息顺序测试。
+- 多段移动只产生一组 intent 消息的测试。
+- 移动在 segment 间 idle 空隙被中断的测试。
 - Replay v1 回归。
 - Pause / Resume / Cancel / Battle End 回归。
-- Panel 故障隔离测试。
+- Panel 故障隔离和 Feed 生命周期测试。
+- 固定并排布局的多视口测试。
 - Call A 性能与策略质量报告。
+
+Gate：消息完整性、战斗正确性、布局约束和性能质量门槛全部通过。
+
 
 ## 9. 测试矩阵
 
@@ -610,26 +811,37 @@ Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD。
 - 每次 append 只新增一条消息。
 - 旧消息对象和内容不会被后续事件修改。
 - Feed 不存在 update / close / resolve 单条消息的操作。
-- sequence 严格递增。
+- sequence 严格递增，id 在单场 Battle 内唯一。
 - UI 展示顺序为 sequence 倒序。
 - 超出容量时只淘汰最旧消息。
-- clear 只在 Battle 实例销毁 / 重置时发生。
+- clear 只在 Battle View 销毁 / 明确重置时发生。
+- 单个 subscriber 抛错不影响其他 subscriber。
 - formatter 对未知 Actor / Skill ID 有安全 fallback。
+- Feed 不包含 requestStatus、activeRequest 或 thinkingActors。
 
 ### 9.2 Runtime / Simulation 事件测试
 
-- DecisionPort 调用前产生一次 decision.started。
-- Call A 和 Call B 不分别产生两条 started 消息。
-- Plan 只有在 Simulation accept 后才产生 decision.accepted。
+- 玩家可感知的 DecisionPort 请求在实际调用前产生一次 decision.started。
+- initial、damaging_hit、plan_exhausted、plan_failed 按规则产生消息。
+- prefetch、correction、内部重试不产生重复 decision.started。
+- Call A 和 Call B 不分别产生消息。
+- Plan 只有在 Simulation acceptPlan 后才产生 decision.accepted。
+- decision.accepted 能同时表达 path、turn 和 skill。
 - Plan 仅被模型返回但未通过验证时，不显示“已决定”。
-- skill.started 只在进入正式施法动作时产生。
+- movement.started 只在移动意图第一段真正开始时产生一次。
+- 多段路径的中间 segment 不产生额外 movement.started / completed。
+- movement.completed 只在最终目的地抵达后产生。
+- 移动在 segment 间 idle 空隙被伤害中断时，仍产生 movement.interrupted。
+- 第一段移动无法启动时产生 movement.failed，不先产生 movement.started。
+- skill.started 只在正式施法动作开始时产生；瞬发技能的 started 先于 resolved。
 - damage.applied 的数值与最终 HP 结算完全一致。
-- actor.defeated 每个 Actor 每场 Battle 只产生一次。
+- actor.defeated 每个 Actor 每场 Battle 只产生一次，且晚于致命伤害。
+- battle.ended 只产生一次，payload 与最终 BattleResult 完全一致。
 - 同一 Tick 的 messageFacts 顺序稳定。
 - Runtime observer 抛错不影响 BattleResult。
 - 内部 request cancellation 不会修改或删除历史消息。
 - stale completion 不会产生虚假的 decision.accepted。
-- 受击后如果发起新 Decision 请求，产生一条新的 decision.started。
+- 受击后如果 Runtime 发起新的玩家可感知 Decision 请求，新的 decision.started 排在该 Tick 的受击事实之后。
 
 ### 9.3 核心场景验收
 
@@ -639,12 +851,13 @@ Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD。
 
 1. 角色 A 开始分析战场情报。
 2. 角色 B 发动雷电术。
-3. 角色 A 受到 15 点伤害。
-4. 角色 A 根据新的战况重新评估行动（仅当 Runtime 确实发起新请求时）。
+3. 雷电术命中角色 A。
+4. 角色 A 受到 15 点伤害。
+5. 如果 A 有尚未完成的移动意图，角色 A 的移动被打断。
+6. 旧请求在 Runtime 内部失效，不产生取消消息，也不修改第 1 条。
+7. 只有 Runtime 确实发起新的 damaging_hit 决策轮次时，才产生“角色 A 根据新的战况重新评估行动”。
 
-旧的第 1 条消息保留，不更新、不关闭、不删除。
-
-UI 最新消息置顶后，显示顺序为 4、3、2、1。
+UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条没有发生，对应消息也不得凭空出现。
 
 ### 9.4 Presentation / Browser 测试
 
@@ -653,17 +866,22 @@ UI 最新消息置顶后，显示顺序为 4、3、2、1。
 - 用户阅读旧消息时不被强制滚回顶部。
 - 长战斗消息缓存始终有界。
 - Activity Panel DOM / formatter 出错不会导致 Battle Simulation 失败。
-- 不同视口宽度下始终保持左右并排；Panel 宽度符合 32% / 最大 600px 规则，内容可在 Panel 内换行和滚动，不出现抽屉或覆盖层模式。
-- Battle close 后清理 subscription、DOM listener 和缓存引用。
+- 所有视口尺寸下始终保持左右并排。
+- Panel 宽度等于 Battle View 可用内容宽度的 32%，但不超过 600px；World 使用剩余宽度。
+- 不出现抽屉、覆盖层或布局模式切换。
+- Camera / logical viewport 使用扣除 Panel 后的 World 实际宽度。
+- Battle ended 后最后消息仍可见；Battle View 销毁后清理 subscription、DOM listener 和缓存引用。
 
 ### 9.5 性能测试
 
 - A0 / A1 / A2 使用相同 Observation 和 Prompt。
 - Call A / Call B / total latency 分开统计。
-- Token usage 缺失时记录 unknown，不推测。
+- Provider usage 缺失时记录 unknown，不推测。
+- Metrics Sink 同步抛错或异步失败时，Decision 结果不变。
 - incomplete response / timeout / abort / malformed response 均正确处理。
 - 新 profile 的 Plan acceptance 和战术质量满足预设门槛。
 - 普通 CI 不依赖真实 Provider credential；真实 Provider 测试显式 opt-in。
+
 
 ## 10. 预计代码影响面
 
@@ -671,44 +889,60 @@ UI 最新消息置顶后，显示顺序为 4、3、2、1。
 
 | 文件 / 模块 | 预计职责 |
 |---|---|
-| game-libs/battle/src/contracts.ts | BattleMessage 类型与 Runtime observer surface |
-| game-libs/battle/src/simulation/tick.ts | 生成有序 messageFacts |
-| game-libs/battle/src/simulation/runtime.ts | 发布 Decision started、Tick facts 和 Battle lifecycle 消息 |
-| game-libs/battle/src/decision.ts 或新的版本化 Decision 实现 | Call A profile / timing / usage |
-| game-libs/battle/browser/battle.browser.js | 右侧 Message Panel 组件 |
-| game-libs/battle/browser/battle.css | Panel 布局、消息样式、响应式适配 |
-| subsystems/battle.mjs | 订阅 Runtime 消息并组装 Feed / Panel |
-| game-libs/battle/test/decision.test.mjs | 性能 profile 与 Provider 测试 |
-| game-libs/battle/test/simulation.test.mjs | messageFacts 产生时机和顺序 |
-| game-libs/battle/test/presentation.test.mjs | Feed / Panel 隔离测试 |
-| game-libs/battle/test/browser-e2e.test.mjs | 消息排序、滚动、响应式 E2E |
+| game-libs/battle/src/contracts.ts | BattleMessage 类型与 Runtime onMessage observer surface |
+| game-libs/battle/src/simulation/plan.ts | RequestDecisionCommand 携带内部 trigger reason；correction 使用独立 reason |
+| game-libs/battle/src/simulation/state.ts | 维护跨 motion segment 的 movement intent 元数据 |
+| game-libs/battle/src/simulation/tick.ts | 生成有序 SimulationMessageFact，并在 TickOutput 暴露 messageFacts |
+| game-libs/battle/src/simulation/runtime.ts | Dispatcher、sequence / elapsedMs、Decision started、Battle lifecycle 消息和 Runtime timing |
+| game-libs/battle/src/decision.ts 或新的版本化 Decision 实现 | Call A profile、Call A / B timing、Provider usage 与 Metrics Sink |
+| game-libs/battle/browser/battle.browser.js | 固定并排布局中的右侧 Message Panel |
+| game-libs/battle/browser/battle.css | Panel 宽度 32% / 最大 600px、消息样式、独立滚动 |
+| subsystems/battle.mjs | runtime.run() 前注册 onMessage，组装 Feed / Panel 并管理 View 生命周期 |
+| game-libs/battle/test/decision.test.mjs | 性能 profile、usage、Metrics Sink 和 Provider 测试 |
+| game-libs/battle/test/simulation.test.mjs | messageFacts、movement intent、产生时机和顺序 |
+| game-libs/battle/test/presentation.test.mjs | Feed / Panel 隔离和固定布局测试 |
+| game-libs/battle/test/browser-e2e.test.mjs | 消息排序、滚动、固定并排布局和多视口 E2E |
+
+如果 Feed 逻辑需要独立文件，可在 PokeMan composition 层增加轻量模块；不要把 Feed 放入 Simulation Core，也不要为了它创建新的 PresentationPort。
+
 
 ## 11. 不可妥协的设计约束
 
 1. **Message Feed 是事件历史，不是状态镜像。**
-2. **一件值得玩家了解的事情发生一次，就产生一条独立消息。**
+2. **一件值得玩家了解的事情发生一次，就产生一条独立消息；内部重试和后台预取不伪装成玩家事件。**
 3. **历史消息不因后续 AI 请求状态而改变。**
 4. **AI 请求取消是 Runtime 内部职责，不是 Panel 清理机制。**
-5. **Simulation 是移动、技能、伤害和击倒事实的唯一权威。**
-6. **Decision 只提出 Plan，Simulation 决定是否接受和执行。**
-7. **Call A 性能实验与 Message Feed 完全解耦。**
-8. **Replay v1 不因消息窗口而被隐式修改。**
-9. **Message Feed / Panel 故障不能影响核心战斗。**
-10. **不显示模型 hidden reasoning 或未经验证的行动结果。**
+5. **Runtime 是 Decision 请求与 Battle 生命周期事件的权威来源。**
+6. **Simulation 是 Plan 接受、移动、技能、伤害和击倒事实的唯一权威。**
+7. **移动意图与单段 motion segment 分离；多段路径不能刷屏，也不能漏报中断。**
+8. **Runtime 统一分配 message ID / sequence / elapsedMs；sequence 决定顺序。**
+9. **Call A 性能实验与 Message Feed 完全解耦。**
+10. **Replay v1 不因消息窗口而被隐式修改。**
+11. **所有设备使用同一左右并排布局；Panel 为可用内容宽度的 32%，最大 600px；不提供抽屉或覆盖层模式。**
+12. **Message Feed / Panel 故障不能影响核心战斗。**
+13. **不显示模型 hidden reasoning、Provider 原始错误或未经 Simulation 验证的行动结果。**
+
 
 ## 12. 完成定义
 
 本方案完成需要同时满足：
 
 - Call A 有可重复的性能基线，候选优化有延迟与质量数据支持。
+- Call A / Call B 分段指标可采集；Provider usage 缺失时明确记录 unknown。
 - v0 Decision 基线保持可用，未通过质量门槛的候选配置不会成为默认。
-- Battle 中的关键事件能生成独立、不可变的消息。
+- Runtime Events 与 Simulation Facts 的来源和责任边界清晰，不混入彼此的输出契约。
+- 每一种玩家可见消息都有唯一权威来源、触发时机和确定顺序。
+- decision.accepted 能准确表达完整 Plan，包括移动、转向和技能组合。
+- 多段移动只展示一次移动意图的开始、完成或中断；segment 间受击不会漏报中断。
 - 消息最新置顶，历史消息不会因为 AI 请求完成、失败或取消而被修改。
-- 受击、伤害、重新发起决策等事件按真实发生顺序展示。
+- 受击、技能结算、伤害、移动中断和重新发起决策等事件按真实发生顺序展示。
+- battle.ended 只发布一次并携带最终 BattleResult。
 - Message Feed 不维护 AI request state，不参与 Simulation。
+- runtime.run() 前完成消息订阅；battle.ended 后 Feed 保留，Battle View 销毁时才清理。
 - Activity Panel 不与 World / HUD 共用必须原子成功的更新事务。
+- 所有视口宽度下均为固定左右并排布局；Panel 为 Battle View 可用内容宽度的 32%，最大 600px，World 使用剩余宽度；不存在抽屉、覆盖层或模式切换。
 - Replay v1、BattleResult、Pause / Resume / Cancel 和战后 Settlement 无回归。
-- 所有视口宽度下的固定并排布局通过测试：Panel 为可用内容宽度的 32%、最大 600px，World 使用剩余宽度；不存在抽屉、覆盖层或模式切换。
+- Panel / Feed / Metrics Sink 故障均不会影响核心战斗。
 
 ## 参考实现与契约
 
