@@ -103,7 +103,7 @@ Runtime 在追加 `decision.analysis_completed` 前，必须校验：
 
 ## 5. 与 Presentation、Message Frame 和关闭生命周期的关系
 
-- PokeMan composition 在 `runtime.run()` 前订阅 `onMessage`，把三类来源统一写进同一个有界、追加式 Message Feed，再由同一个 Activity Panel 读取和显示。
+- PokeMan composition 在 `runtime.run()` 前订阅 `onMessage`，把三类来源统一写进同一个有界、追加式 Message Feed；在 Subsystem 侧通过 `Feed.subscribe` 把有界快照转成 PokeMan-owned UI-only RenderDomain 的**单个稳定 Panel RenderNode** 的 RenderData，Browser Activity Panel 只读取这些展示数据。不得假定 Browser Web Component 可直接访问 Subsystem 的内存 Feed；不得为每条消息新增 RenderNode。
 - 过程文本不再通过 `BattlePresentationHandler.emitProcessMessage`、`battle.process-message` 或 `lr-battle-view.receiveRenderEvent` 建立**单独的瞬时提示**；这些是被主设计统一 Feed 取代的旧提案路径，不作为本轮实现要求。
 - Activity Panel 不属于 Battle gameplay RenderProjection，也不修改 Battle State；表现层故障不得影响 Simulation、Decision、BattleResult 或正常 Battle 关闭。
 - 现有 `frame.call("message", prompt)` 仅保留 Host background / Decision circuit 等需要玩家操作的暂停、继续、退出交互。战斗日志和策略文字不创建 Message Frame、不等待玩家点击、不改变 Battle pause 状态。
