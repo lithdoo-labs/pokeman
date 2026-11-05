@@ -1,12 +1,6 @@
 name: Battle Live Test (DeepSeek)
 
 on:
-  # Bootstrap run: adding/updating this workflow on main runs one real
-  # Call A + Call B smoke test. Future runs can be started manually below.
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/battle-live-test.yml"
   workflow_dispatch:
     inputs:
       confirm_live_api:
@@ -25,7 +19,7 @@ concurrency:
 jobs:
   live-smoke:
     name: Verify DeepSeek Call A + Call B
-    if: github.event_name == 'push' || inputs.confirm_live_api == true
+    if: inputs.confirm_live_api == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -122,7 +116,7 @@ jobs:
           {
             echo "## Battle Live Test (DeepSeek)"
             echo
-            echo "- Environment: `battle-live-test`"
+            echo "- Environment: battle-live-test"
             echo "- Scope: one real Call A request followed by one real Call B request"
             echo "- Credential value and provider response bodies are not written to the summary"
             echo
