@@ -771,22 +771,9 @@ domain.close()
 
 `domain.replace()` 应保留给真正的 Scene/结构重建，而不是 move、damage、turn、skill effect 等普通运行操作。
 
-### 14.2 Viewport、地图区域与 Footer：复用 Map 已实现的几何规则
+### 14.2 屏幕适配与 Footer：复用 Map 已实现的几何规则
 
-Battle v0 的 viewport 输入来自 `SubsystemScope.viewport`，其语义是**当前 Battle Presentation 根节点可用的完整 viewport**，不是地图区域的专属尺寸。
-
-现有 LoomRealm 接口已经明确这一点：
-
-- `SubsystemScope.viewport.current` 提供一个 `{ width, height }`；
-- `subscribe(listener)` 订阅同一个 viewport 的后续变化；
-- Renderer Data 的 `ViewportStateV1` 也只有 `width / height`；
-- 该接口没有 region ID、mount rect、map rect 或子 viewport identity。
-
-因此，Battle 不应新增 `map-scoped viewport adapter`，也不应要求 LoomRealm 为地图区域增加第二套 viewport subscription。完整 viewport 由现有接口提供，地图、Panel（若启用）和底部 HUD 的区域尺寸由 Battle Presentation 自己的纯布局计算派生。
-
-#### 现有 v0 布局 — FROZEN
-
-当前实现没有右侧 Panel。完整 viewport 的宽度全部分配给地图内容，底部 Footer/HUD 占用独立高度。
+Battle v0 不再单独发明一套 viewport layout 算法。目标是让 Map → Battle 切换时 tile 尺度、逻辑可视区域、缩放方式和 footer 高度保持一致。
 
 当前 Map Runtime 实际用于 Presentation layout 的核心是 `calculateLayout(width, height)`：
 
@@ -838,7 +825,7 @@ Battle v0 当前冻结的是：
 - 复用 columns/rows 计算；
 - 复用 `logicalWidth / logicalHeight`；
 - 复用 `scaleX / scaleY`；
-- Browser logical world 到实际地图 content 区域的缩放语义。
+- Browser logical world 到实际 viewport 的缩放语义。
 
 **Battle v0 明确不启用 viewport clamp/default/min/max normalization。**
 
@@ -852,70 +839,35 @@ non-null SubsystemScope.viewport
 
 只接受 shared layout helper 已要求的正 safe integer；非法 viewport 是 Presentation fatal。Battle 不得单方面调用 Map 的 `clampViewport()`，也不得另行发明 responsive breakpoint/logical grid。未来若 Map/Battle 一起引入 normalization，必须作为新规范变更。
 
-#### 新增右侧 Panel 的布局扩展 — PROPOSED，尚未实现
+#### Resize settlement — FROZEN
 
-如果 Battle View 增加右侧 Panel（例如展示 Decision Reason 等只读 Battle 信息），它仍然属于同一个完整 Battle viewport，不构成新的 LoomRealm viewport，也不需要 map-scoped adapter。本节只定义几何分区；Panel 的 Message/Decision 数据契约必须独立定义，不得从 viewport ABI 推导或塞入 PlanSubmission。
-
-布局应由 Battle Presentation 从完整 viewport 派生：
+Battle v0 不复制 Map 的 operation-busy resize state machine。固定算法：
 
 ```text
-viewportWidth  = scope.viewport.width
-viewportHeight = scope.viewport.height
+initialize:
+  first non-null viewport
+  → immediate layout calculation
 
-barHeight = existing height breakpoint(viewportHeight)
+later viewport event:
+  → overwrite pending viewport with latest value
+  → reset one trailing-edge RESIZE_SETTLE_MS = 100 ms timer
 
-panelWidth = Battle panel width policy(viewportWidth)
-mapContentWidth  = viewportWidth - panelWidth
-mapContentHeight = viewportHeight - barHeight
+timer fires:
+  → calculateTileViewportLayout(latest width, height)
+  → if resulting layout equals committed layout: no-op
+  → else recompute camera + visible tile window
+  → visualEpoch++
+  → one atomic domain.update across view / actors / effects / HUD
 ```
 
-区域关系：
+规则：
 
-```text
-┌──────────────────────────┬──────────────┐
-│                          │              │
-│       Map / World        │    Panel     │
-│                          │              │
-├──────────────────────────┴──────────────┤
-│             Battle HUD / Footer         │
-└─────────────────────────────────────────┘
-```
-
-几何约束：
-
-- 根 `lr-battle-view` 仍覆盖完整 `viewportWidth × viewportHeight`；
-- 地图区域宽度为 `mapContentWidth`，高度为 `mapContentHeight`；
-- Panel 位于地图右侧、Footer 上方；
-- HUD/Footer 仍横跨完整 viewport 宽度，保留现有 `barHeight` breakpoint；
-- Camera、`projectTiles()`、logical grid 和 `scaleX / scaleY` 只使用地图区域尺寸；
-- Panel 不进入 world transform，不受 camera、tile scale 或 Actor movement transform 影响；
-- resize 仍只订阅完整 viewport；一次 trailing-edge settlement 原子更新地图、Panel、HUD 所需的所有视觉数据。
-
-**调用 shared tile layout helper 时必须注意高度语义。** 现有 `calculateTileViewportLayout(width, height)` 内部会自行扣除一次 `barHeight`。因此新布局 wrapper 应传入：
-
-```ts
-calculateTileViewportLayout(mapContentWidth, viewportHeight)
-```
-
-而不是：
-
-```ts
-calculateTileViewportLayout(mapContentWidth, mapContentHeight)
-```
-
-后者会再次扣除 Footer 高度，造成地图高度计算错误。新 wrapper 还必须单独保留完整的 `viewportWidth`，因为传给 tile helper 的宽度已经是地图区域宽度，不再是根节点宽度。
-
-新增 Panel 的精确宽度策略目前尚未由现有代码或 frozen contract 定义；比例、最大宽度和窄屏策略必须作为明确的布局决策单独确定，不能把示例值直接写成现有规则。
-
-实现该扩展前，还必须同步更新：
-
-1. `TileViewportLayout` 的 Battle 侧组合结果，区分完整 viewport 与地图 content 尺寸；
-2. `BattleViewRenderData`，明确传递根 viewport、Panel 与地图区域的尺寸；
-3. Browser `assertView()`，验证区域尺寸关系和布局派生公式；
-4. `lr-battle-view` Shadow DOM/CSS，让地图 stage、Panel 和 HUD 分别占据正确区域；
-5. Camera、tile projection、resize 与 capacity preflight 测试。
-
-在上述 ABI 和布局策略完成前，现有 v0 的 full-width map + footer 实现仍是唯一已实现并通过 qualification 的布局；不能把这个 proposed extension 标记为已实现。
+- active movement/effect MUST NOT block resize；
+- resize MUST preserve every actor-local motionId/fingerprint；Browser motion不得重新计时；
+- PAUSED 时 resize timer仍运行，但新 data 继续携带 `paused=true`；
+- close 必须取消 pending resize timer/subscription；
+- resize 不产生 Simulation input，不改变 tick/gameplay state；
+- 首次 viewport 不走 100 ms debounce。
 
 ### 14.2.1 Footer 的 Battle 内容
 
