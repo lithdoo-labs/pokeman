@@ -110,6 +110,25 @@ decision.started 表示“系统开始为角色处理一个玩家可感知的决
 - Battle Presentation 的 tile viewport、logical viewport、Camera、scale 和 tile projection 全部基于这组 `mapViewport` 尺寸计算。
 - 不得使用整个 Battle View、整个上半部分（尚未扣除 Panel）或浏览器 viewport 的宽高代替左上地图容器尺寸。
 
+布局层级：
+
+```text
+Battle View
+├── 上半部分（沿用现有上层区域）
+│   ├── 左上：原有战斗地图（Map Viewport）
+│   └── 右上：Activity Panel
+└── 下半部分（现有区域，保持不变）
+```
+
+几何尺寸的数据流必须明确且单一：
+
+1. PokeMan composition / Battle View 外层布局负责取得上半部分的实际 content rect。
+2. 外层布局根据 upperContentWidth 计算右上 Panel 宽度与左上地图剩余宽度，并确定两者共同的可用高度。
+3. 左上地图容器的实际 content rect（mapViewport.width / mapViewport.height）是 Battle Presentation 的唯一 viewport 尺寸来源。
+4. 当前 BattlePresentationBuilder 通过 `scope.viewport.current` 和 `scope.viewport.subscribe()` 获取初始尺寸及 resize 更新；接入时必须确保该 viewport source 表示左上地图容器，而不是整个 Battle View、上半部分未扣除 Panel 前的区域或浏览器窗口。若现有 `scope.viewport` 仍代表全局 viewport，应在 PokeMan composition 与 Battle Presentation 之间提供 map-scoped viewport adapter / port，不得让 Battle Presentation 猜测或自行从全局宽度减去 Panel。
+5. `calculateTileViewportLayout`、Camera、scale、tile projection，以及传给 `lr-battle-view` 的 `viewportWidth / viewportHeight`，全部使用同一份 mapViewport 尺寸。容器 resize 时，外层布局更新 map-scoped viewport，Presentation 再按该尺寸重新计算。
+6. Activity Panel 不进入地图的 RenderProjection / RenderDomain；下半部分继续使用原有布局与尺寸来源。
+
 分辨率范围沿用 PokeMan 现有的游戏支持范围和项目测试基线。本方案不自行指定新的最小 / 最大分辨率或宽高比；实现与验收应覆盖现有支持范围内的代表性尺寸，不能把“所有可能的 viewport 尺寸”当作要求。若仓库没有集中记录该范围，应沿用当前游戏实际运行与 QA 使用的 viewport 预设，不由 Issue Agent 擅自扩展支持承诺。
 
 右上消息面板是上半部分内独立的 UI 区域，不是 RenderProjection 的一部分，也不是 AI 状态面板。
@@ -581,7 +600,8 @@ SimulationMessageFact 只包含 Simulation 权威事实，不是完整 BattleMes
 - Activity Panel 宽度为上半部分可用内容宽度的 32%，最大 600px；左上地图使用剩余宽度。
 - 计算规则：panelWidth = min(upperContentWidth × 0.32, 600px)；mapWidth = upperContentWidth - panelWidth。upperContentWidth 是扣除上半部分自身 padding 与列间距后的可分配宽度。
 - 左上地图的 viewport width / height 必须取左上地图容器自身的实际内容宽高；不得使用整个 Battle View、未扣除 Panel 的上半部分宽度或浏览器 viewport 尺寸。
-- Battle Presentation 的 tile viewport、logical viewport、Camera、scale 与 tile projection 均以左上地图容器的 viewport 为准。
+- 当前 BattlePresentationBuilder 从 `scope.viewport` 读取初始尺寸并订阅 resize；PokeMan composition 必须向其提供左上地图容器的 map-scoped viewport。若现有 scope viewport 仍是全局 viewport，应增加局部 viewport adapter / port，不得在 Presentation 内部硬编码 Panel 宽度或再次从全局 viewport 推算。
+- `calculateTileViewportLayout`、Camera、scale、tile projection，以及 `lr-battle-view` 的 `viewportWidth / viewportHeight` 必须使用同一份 map-scoped viewport 尺寸；resize 更新也必须来自左上地图容器。
 - 在上述受支持范围内，不提供抽屉、覆盖层、移动端替代布局或断点切换；不为未支持的极端分辨率增加额外适配。
 
 ## 7. Call A 性能优化方案
@@ -891,7 +911,7 @@ UI 最新消息置顶后，按 sequence 反向展示。若第 5 条或第 7 条�
 - 在 PokeMan 当前支持的游戏分辨率与宽高比范围内，Battle View 保持原有上下结构，上半部分始终左右并排。
 - 上半部分右侧 Panel 宽度等于上半部分可用内容宽度的 32%，但不超过 600px；左上地图使用剩余宽度；下半部分保持现有布局。
 - 不出现抽屉、覆盖层或布局模式切换；未支持的极端尺寸不属于本功能验收范围。
-- Camera / logical viewport 使用左上地图容器自身的实际内容宽度和高度。
+- Camera / logical viewport 使用左上地图容器自身的实际内容宽度和高度；验证 BattlePresentationBuilder 接收到的 viewport source 确实是 map-scoped viewport，并随左上容器 resize 更新，而不是全局 viewport。
 - Battle ended 后最后消息仍可见；Battle View 销毁后清理 subscription、DOM listener 和缓存引用。
 
 ### 9.5 性能测试
