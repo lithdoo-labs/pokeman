@@ -71,20 +71,31 @@ AI 请求的取消、超时、generation 校验和 stale completion 丢弃，仍
 
 ### 3.1 布局
 
-桌面端 Battle View 采用：
+**所有设备统一采用左右并排布局，不提供抽屉、覆盖层或布局模式切换。**
 
-- 主区域：战斗地图、角色和现有 HUD。
-- 右侧：Battle Message Feed。
+- 左侧：战斗地图、角色和现有 HUD（World）。
+- 右侧：Battle Message Feed（Activity Panel）。
+- Activity Panel 宽度为 Battle View 可用内容宽度的 **32%**，最大宽度 **600px**。
+- World 占用扣除 Activity Panel 后的全部剩余宽度。
+- 宽度按 Battle View 内 World 与 Activity Panel 可共同使用的内容宽度计算，不按浏览器窗口外框计算。
+- 不额外设置固定最小宽度；窄屏下仍保持并排，Panel 内容在自身区域内换行和滚动，不切换成抽屉或覆盖层。
+- Activity Panel 的消息列表独立纵向滚动，不改变 World 的滚动和战斗状态。
 
-右侧消息面板是战斗画面的一个独立 UI 区域，不是 RenderProjection 的一部分，也不是 AI 状态面板。
+宽度计算：
 
-初始设计宽度可按 300–360 px 试验，最终由实际地图可视面积和视口测试决定。
+`panelWidth = min(availableContentWidth × 0.32, 600px)`
 
-窄屏 / PWA：
+`worldWidth = availableContentWidth - panelWidth`
 
-- 使用可展开的抽屉或覆盖层。
-- 默认不挤压战斗地图到不可用尺寸。
-- 打开消息抽屉时，消息列表仍然遵循最新消息置顶。
+例如：
+
+| Battle View 可用内容宽度 | Activity Panel | World |
+|---:|---:|---:|
+| 1000px | 320px | 680px |
+| 1600px | 512px | 1088px |
+| 2400px | 600px（达到上限） | 1800px |
+
+右侧消息面板是战斗画面的独立 UI 区域，不是 RenderProjection 的一部分，也不是 AI 状态面板。
 
 ### 3.2 消息排序
 
@@ -416,7 +427,7 @@ interface TickOutput {
 - Panel 的格式化、DOM 更新和滚动逻辑失败时，只影响 Panel。
 - 消息监听器应只做轻量入队；实际 DOM 更新由 UI 自己批量调度，避免同步渲染阻塞 Runtime。
 
-现有 Battle View 当前以 world / HUD 为主要区域。实现时扩展布局为 world + HUD + activity，不要求把 Activity 变成新的 Simulation PresentationPort。
+现有 Battle View 当前以 world / HUD 为主要区域。实现时扩展为固定的左右并排布局：左侧 world + HUD，右侧 activity。Activity 不成为新的 Simulation PresentationPort。Activity Panel 宽度按 Battle View 可用内容宽度的 32% 计算，最大 600px；World 使用剩余宽度。所有视口尺寸都保持这一布局，不增加抽屉、覆盖层或断点切换。
 
 ## 7. Call A 性能优化方案
 
@@ -576,7 +587,7 @@ Gate：Feed 不包含 Active Request / Thinking State / Request Cancellation UI 
 - 最新消息置顶。
 - 历史滚动和新消息提示。
 - 消息模板、Actor / Skill 名称映射。
-- Desktop / PWA / narrow viewport 布局。
+- 所有视口尺寸下统一的左右并排布局；Activity Panel 宽度为可用内容宽度的 32%，最大 600px，World 使用剩余宽度。
 - reduced motion 和基本无障碍支持。
 
 Gate：Panel 不依赖 AI 请求结束事件，不影响 World / HUD。
@@ -642,7 +653,7 @@ UI 最新消息置顶后，显示顺序为 4、3、2、1。
 - 用户阅读旧消息时不被强制滚回顶部。
 - 长战斗消息缓存始终有界。
 - Activity Panel DOM / formatter 出错不会导致 Battle Simulation 失败。
-- narrow viewport 不遮挡关键战场区域。
+- 不同视口宽度下始终保持左右并排；Panel 宽度符合 32% / 最大 600px 规则，内容可在 Panel 内换行和滚动，不出现抽屉或覆盖层模式。
 - Battle close 后清理 subscription、DOM listener 和缓存引用。
 
 ### 9.5 性能测试
@@ -697,7 +708,7 @@ UI 最新消息置顶后，显示顺序为 4、3、2、1。
 - Message Feed 不维护 AI request state，不参与 Simulation。
 - Activity Panel 不与 World / HUD 共用必须原子成功的更新事务。
 - Replay v1、BattleResult、Pause / Resume / Cancel 和战后 Settlement 无回归。
-- Desktop / PWA / narrow viewport 的消息面板体验通过测试。
+- 所有视口宽度下的固定并排布局通过测试：Panel 为可用内容宽度的 32%、最大 600px，World 使用剩余宽度；不存在抽屉、覆盖层或模式切换。
 
 ## 参考实现与契约
 
