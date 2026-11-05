@@ -22,6 +22,15 @@ export interface DeepSeekDecisionOptions {
   readonly transport: DeepSeekTransport;
 }
 
+/**
+ * Optional side-channel observer receiving the fully generated **visible**
+ * Call A strategyMemo (byte-identical to what Call B receives) right after a
+ * successful Call A whose AbortSignal has not fired. Synchronous, at most
+ * once per request, never awaited; a throw is isolated and cannot change the
+ * DecisionCompletion. Not part of DecisionPort.
+ */
+export type DeepSeekProcessMessageObserver = (request: DecisionRequest, strategyMemo: string) => void;
+
 type DecisionWorkflowResult =
   | { readonly type: "completed"; readonly plan: PlanSubmission }
   | { readonly type: "failed"; readonly error: DecisionFailure };
@@ -30,11 +39,14 @@ interface DecisionWorkflow {
   run(request: DecisionRequest, signal: AbortSignal): Promise<DecisionWorkflowResult>;
 }
 
-const MODEL = "deepseek-flash";
-const PROVIDER_TIMEOUT_MS = 60_000;
-const MAX_DEEPSEEK_REQUEST_BYTES = 512 * 1024;
+export const DEEPSEEK_MODEL = "deepseek-flash";
+const MODEL = DEEPSEEK_MODEL;
+export const DEEPSEEK_PROVIDER_TIMEOUT_MS = 60_000;
+const PROVIDER_TIMEOUT_MS = DEEPSEEK_PROVIDER_TIMEOUT_MS;
+export const MAX_DEEPSEEK_REQUEST_BYTES = 512 * 1024;
+const MAX_DEEPSEEK_REQUEST_BYTES_LOCAL = MAX_DEEPSEEK_REQUEST_BYTES;
 
-const CALL_A_INSTRUCTIONS = `You are the Battle v0 tactical planner.
+export const CALL_A_INSTRUCTIONS = `You are the Battle v0 tactical planner.
 Analyze only the authoritative battle context provided as input.
 PATH BASE is planningOrigin, not self.tile.
 Return exactly two visible sections: SITUATION and STRATEGY.
@@ -42,14 +54,14 @@ STRATEGY must describe short-term intent that can be materialized into one PlanS
 Do not invent actors, skills, coordinates, game rules, or hidden state.
 Do not output JSON. Do not call tools.`;
 
-const CALL_B_INSTRUCTIONS = `You are the Battle v0 plan materializer.
+export const CALL_B_INSTRUCTIONS = `You are the Battle v0 plan materializer.
 Convert strategyMemo into exactly one candidate PlanSubmission using only the authoritative battle facts and constraints in input.
 PATH BASE is planningOrigin.
 Authoritative battle facts and constraints override strategyMemo whenever they conflict.
 Return only data matching the battle_plan_v0 JSON Schema.
 Do not explain. Do not call tools. Do not invent or repair world facts.`;
 
-const PLAN_SUBMISSION_SCHEMA = Object.freeze({
+export const PLAN_SUBMISSION_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
   required: Object.freeze(["path"]),
@@ -172,7 +184,7 @@ function copyObservedEvent(event: DecisionRequest["observation"]["recentEvents"]
   }
 }
 
-function formatBattleContext(request: DecisionRequest): Record<string, unknown> {
+export function formatBattleContext(request: DecisionRequest): Record<string, unknown> {
   const { observation, constraints, planningOrigin } = request;
   const radius = constraints.maxPathSteps;
   const minX = Math.max(0, planningOrigin.x - radius);
@@ -320,7 +332,7 @@ async function callDeepSeek(
 ): Promise<string> {
   if (signal.aborted) fail("attempt_failure", "DECISION_ABORTED");
   const bodyText = JSON.stringify(body);
-  if (new TextEncoder().encode(bodyText).byteLength > MAX_DEEPSEEK_REQUEST_BYTES) {
+  if (new TextEncoder().encode(bodyText).byteLength > MAX_DEEPSEEK_REQUEST_BYTES_LOCAL) {
     fail("session_fatal", "DECISION_CONTEXT_TOO_LARGE");
   }
 
@@ -450,13 +462,23 @@ function parsePlanSubmission(text: string): PlanSubmission {
 }
 
 class DeepSeekDecisionWorkflow implements DecisionWorkflow {
-  constructor(private readonly transport: DeepSeekTransport) {}
+  constructor(
+    private readonly transport: DeepSeekTransport,
+    private readonly processMessageObserver?: DeepSeekProcessMessageObserver,
+  ) {}
 
   async run(request: DecisionRequest, signal: AbortSignal): Promise<DecisionWorkflowResult> {
     try {
       const battle = formatBattleContext(request);
       const strategyMemo = await callDeepSeek(this.transport, buildAnalysisRequest(battle), signal);
       if (signal.aborted) fail("attempt_failure", "DECISION_ABORTED");
+      // Optional, isolated bypass: hand the complete visible Call A memo to a
+      // trusted observer. The exact same bytes still flow into Call B below.
+      if (this.processMessageObserver !== undefined) {
+        try {
+          this.processMessageObserver(request, strategyMemo);
+        } catch { /* observer failures never affect the Decision */ }
+      }
       const planText = await callDeepSeek(this.transport, buildMaterializationRequest(battle, strategyMemo), signal);
       return Object.freeze({ type: "completed", plan: parsePlanSubmission(planText) });
     } catch (error) {
@@ -469,12 +491,15 @@ class DeepSeekDecisionWorkflow implements DecisionWorkflow {
 export class DeepSeekDecision implements DecisionPort {
   readonly #workflow: DecisionWorkflow;
 
-  constructor(options: DeepSeekDecisionOptions) {
+  constructor(options: DeepSeekDecisionOptions, processMessageObserver?: DeepSeekProcessMessageObserver) {
     if (!isRecord(options) || Object.keys(options).length !== 1 || !Object.hasOwn(options, "transport")
       || !isRecord(options.transport) || typeof options.transport.postResponses !== "function") {
       throw new TypeError("DeepSeekDecision requires exactly one configured transport");
     }
-    this.#workflow = new DeepSeekDecisionWorkflow(options.transport as unknown as DeepSeekTransport);
+    if (processMessageObserver !== undefined && typeof processMessageObserver !== "function") {
+      throw new TypeError("DeepSeekDecision processMessageObserver must be a function");
+    }
+    this.#workflow = new DeepSeekDecisionWorkflow(options.transport as unknown as DeepSeekTransport, processMessageObserver);
   }
 
   async decide(request: DecisionRequest, signal: AbortSignal): Promise<DecisionCompletion> {

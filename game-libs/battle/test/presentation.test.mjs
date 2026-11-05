@@ -265,3 +265,113 @@ test("normal terminal projection remains visible until explicit close", async ()
   assert.equal(h.domains[0].closed, 0); assert.equal(updateData(h.domains[0], "battle:hud").actors.find((item) => item.actorId === "enemy").hp, 0);
   handler.close(); assert.equal(h.domains[0].closed, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Map-scoped viewport mode (layout component reports the pure map content box)
+// ---------------------------------------------------------------------------
+
+function mapAdapter(initial = null) {
+  const listeners = new Set();
+  const adapter = {
+    get current() { return adapter.value; },
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    report(width, height) {
+      adapter.value = Object.freeze({ width, height });
+      for (const listener of [...listeners]) listener(adapter.value);
+    },
+  };
+  adapter.value = initial;
+  return adapter;
+}
+
+test("map-scoped viewport uses the full measured map box without deducting the HUD bar twice", async () => {
+  const h = harness({ width: 900, height: 700 });
+  const adapter = mapAdapter({ width: 596, height: 408 });
+  const handler = new BattlePresentationBuilder(h.scope, h.frame, { viewport: adapter }).build();
+  await handler.initialize(scene());
+  handler.render(projection());
+  const view = h.domains[0].state.roots[0].data;
+  assert.equal(view.viewportWidth, 596);
+  assert.equal(view.viewportHeight, 408);
+  assert.equal(view.contentHeight, 408, "pure map height is not bar-deducted again");
+  assert.equal(view.contentWidth, 596);
+  assert.equal(view.barHeight, 32, "HUD bar height comes from the window viewport");
+  const rawRows = Math.ceil(408 / 32);
+  const rows = Math.min(33, Math.max(14, rawRows));
+  const columns = Math.round(rows * 596 / 408);
+  assert.deepEqual([view.rows, view.columns, view.logicalWidth, view.logicalHeight], [rows, columns, columns * 32, rows * 32]);
+  assert.equal(view.scaleX, 596 / (columns * 32));
+  assert.equal(view.scaleY, 408 / (rows * 32));
+  handler.close();
+});
+
+test("legacy whole-window mode still deducts the HUD internally and stays unchanged", async () => {
+  const { h, handler } = await ready(harness({ width: 900, height: 700 }));
+  handler.render(projection());
+  const view = h.domains[0].state.roots[0].data;
+  assert.equal(view.viewportWidth, 900);
+  assert.equal(view.contentHeight, 700 - 32);
+  assert.equal(view.barHeight, 32);
+  handler.close();
+});
+
+test("map-scoped resize reports recompute geometry and window resizes only move the bar", async () => {
+  const h = harness({ width: 900, height: 700 });
+  const adapter = mapAdapter({ width: 596, height: 408 });
+  const handler = new BattlePresentationBuilder(h.scope, h.frame, { viewport: adapter }).build();
+  await handler.initialize(scene());
+  handler.render(projection());
+  const domain = h.domains[0];
+  const before = domain.state.roots[0].data.visualEpoch;
+
+  adapter.report(700, 500);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  const view = updateData(domain, "battle:view");
+  assert.equal(view.viewportWidth, 700);
+  assert.equal(view.contentHeight, 500);
+  assert.ok(view.visualEpoch > before, "layout change commits a local epoch");
+
+  const stableEpoch = view.visualEpoch;
+  adapter.report(700, 500);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(updateData(domain, "battle:view").visualEpoch, stableEpoch, "duplicate size reports are deduplicated by layout equality");
+
+  h.emitViewport({ width: 1200, height: 460 });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(updateData(domain, "battle:view").barHeight, 24, "window shrink moves the HUD bar height");
+  handler.close();
+});
+
+test("initialization waits for the first measured map size and rejects invalid adapters", async () => {
+  const h = harness({ width: 900, height: 700 });
+  const adapter = mapAdapter(null);
+  const handler = new BattlePresentationBuilder(h.scope, h.frame, { viewport: adapter }).build();
+  let initialized = false;
+  const pending = handler.initialize(scene()).then(() => { initialized = true; });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(initialized, false, "no first-frame deadlock: layout component can be measured before presentation init");
+  adapter.report(640, 480);
+  await pending;
+  assert.equal(initialized, true);
+  handler.render(projection());
+  assert.equal(h.domains[0].state.roots[0].data.viewportHeight, 480);
+  handler.close();
+
+  assert.throws(() => new BattlePresentationBuilder(h.scope, h.frame, { viewport: {} }).build(), { code: "PRESENTATION_INVALID_DATA" });
+  assert.equal(h.listeners.size, 0);
+});
+
+test("map-scoped close releases both viewport subscriptions", async () => {
+  const h = harness({ width: 900, height: 700 });
+  const adapter = mapAdapter({ width: 596, height: 408 });
+  const adapterListeners = new Set();
+  adapter.subscribe = (listener) => { adapterListeners.add(listener); return () => adapterListeners.delete(listener); };
+  const handler = new BattlePresentationBuilder(h.scope, h.frame, { viewport: adapter }).build();
+  await handler.initialize(scene());
+  handler.render(projection());
+  assert.equal(adapterListeners.size, 1);
+  assert.equal(h.listeners.size, 1, "window viewport stays subscribed for bar height");
+  handler.close();
+  assert.equal(adapterListeners.size, 0);
+  assert.equal(h.listeners.size, 0);
+});

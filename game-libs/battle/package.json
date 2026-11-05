@@ -22,9 +22,17 @@
       "types": "./dist/decision.d.ts",
       "import": "./dist/decision.js"
     },
+    "./decision-profiled": {
+      "types": "./dist/decision-profiled.d.ts",
+      "import": "./dist/decision-profiled.js"
+    },
     "./decision/testing": {
       "types": "./dist/decision/testing.d.ts",
       "import": "./dist/decision/testing.js"
+    },
+    "./messages": {
+      "types": "./dist/messages.d.ts",
+      "import": "./dist/messages.js"
     },
     "./browser/battle.browser.js": "./dist/browser/battle.browser.js",
     "./browser/battle.css": "./dist/browser/battle.css"

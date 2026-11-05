@@ -1,4 +1,4 @@
-import type { DecisionPort, PresentationPort } from "./contracts.js";
+import type { DecisionMetricsSink, DecisionPort, PresentationPort } from "./contracts.js";
 import {
   BattleRuntimeImpl,
   type BattleClock,
@@ -13,6 +13,7 @@ import {
   type ResolvedBattleDefinition,
   type ResolvedBattleSkill,
 } from "./simulation/state.js";
+import type { SimulationMessageFact, TickOutput } from "./simulation/tick.js";
 
 function assertClock(clock: BattleClock): void {
   if (clock === null || typeof clock !== "object" || typeof clock.nowMs !== "function" || typeof clock.schedule !== "function") {
@@ -38,6 +39,10 @@ function assertDecision(decision: DecisionPort): void {
   if (decision === null || typeof decision !== "object" || typeof decision.decide !== "function") throw new TypeError("DecisionPort is required");
 }
 
+function assertMetricsSink(sink: DecisionMetricsSink): void {
+  if (sink === null || typeof sink !== "object" || typeof sink.record !== "function") throw new TypeError("DecisionMetricsSink must provide record()");
+}
+
 export class BattleSimulationBuilder {
   readonly #dependencies: BattleSimulationDependencies;
   #built = false;
@@ -48,6 +53,7 @@ export class BattleSimulationBuilder {
     assertSignal(dependencies.signal);
     assertDecision(dependencies.decision);
     assertPresentation(dependencies.presentation);
+    if (dependencies.metricsSink !== undefined) assertMetricsSink(dependencies.metricsSink);
     this.#dependencies = dependencies;
   }
 
@@ -90,6 +96,7 @@ export type {
   BattleRuntime,
   BattleSimulationDependencies,
 } from "./simulation/runtime.js";
+export type { SimulationMessageFact, TickOutput } from "./simulation/tick.js";
 export type {
   ReplayDamageFact,
   ReplayDecisionRecord,

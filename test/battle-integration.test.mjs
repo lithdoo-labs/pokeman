@@ -534,3 +534,220 @@ test("pause Message exit cancels without settling Contract HP", async () => {
   assert.equal((await pending).type, "cancelled");
   assert.equal(cancelCount, 1); assert.equal(settlementCount, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Battle Message Feed + fixed layout + map viewport bridge wiring
+// ---------------------------------------------------------------------------
+
+class RecordingDomain {
+  updates = []; replaces = []; emits = []; closed = 0;
+  constructor(state) { this.state = state; }
+  update(value) { this.updates.push(value); }
+  replace(value) { this.replaces.push(value); }
+  emit(event) { this.emits.push(event); }
+  close() { this.closed += 1; }
+}
+
+test("Battle Frame wires feed, layout domain, viewport bridge, and cleans up on close", async () => {
+  const version = `sha256:${"3".repeat(64)}`;
+  const table = (values, xSize, ySize = 1, zSize = 1) => ({ dimensions: zSize === 1 && ySize === 1 ? 1 : 3, xSize, ySize, zSize, values });
+  const arenaRecords = new Map([
+    ["struct.BattleArena:test", { id: "test", tileset_id: 1, width: 8, height: 8, passable: Array.from({ length: 8 }, () => Array(8).fill(true)), data: table(Array(8 * 8 * 3).fill(0), 8, 8, 3) }],
+    ["struct.Tileset:1", { id: 1, tileset_name: "field.png", autotile_names: [null, null, null, null, null, null, null], priorities: table(Array(500).fill(0), 500) }],
+    ["struct.BattleEffect:strike", { id: "strike", image: { namespace: "resource.Graphics", key: "BattleEffects/spark.png" }, anchor: "tile-center", timing: { fade_in_ticks: 1, hold_ticks: 1, fade_out_ticks: 1 } }],
+  ]);
+  const content = {
+    async record(namespace, key) { const value = arenaRecords.get(`${namespace}:${key}`); if (!value) throw new Error("missing"); return { value, contentVersion: version }; },
+    async resource() { return { bytes: new Uint8Array([1]), mime: "image/png", contentVersion: version }; },
+  };
+  const domains = [];
+  const viewportListeners = new Set();
+  const presentationHandlers = new Map();
+  const frameHandlers = new Map();
+  const scope = {
+    signal: new AbortController().signal,
+    state: {},
+    events: {},
+    content,
+    viewport: {
+      current: { width: 1024, height: 768 },
+      subscribe(listener) { viewportListeners.add(listener); return () => viewportListeners.delete(listener); },
+    },
+    presentationEvents: {
+      createListener({ channels }) {
+        const listener = {
+          on(channel, handler) {
+            const set = presentationHandlers.get(channel) ?? new Set();
+            set.add(handler);
+            presentationHandlers.set(channel, set);
+            return () => set.delete(handler);
+          },
+          setChannels() {},
+          close() { listener.closed = true; presentationHandlers.clear(); },
+          closed: false,
+        };
+        frameHandlers.set(channels.join(","), listener);
+        return listener;
+      },
+    },
+    createRenderDomain(state) { const domain = new RecordingDomain(state); domains.push(domain); return domain; },
+  };
+
+  const transportCalls = [];
+  const scriptedProvider = async (url, init) => {
+    transportCalls.push({ url, body: JSON.parse(init.body) });
+    const body = transportCalls.at(-1).body;
+    const isCallA = body.text?.format?.type === "text";
+    const self = isCallA ? JSON.parse(body.input).selfActorId : JSON.parse(body.input).battle.selfActorId;
+    const plan = self === "player"
+      ? { path: [], skill: { skillId: "strike", targetActorId: "rival", minCoefficient: 1 } }
+      : { path: [] };
+    const responseText = isCallA
+      ? JSON.stringify({ object: "response", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "SITUATION 相邻\nSTRATEGY 立即攻击" }] }], usage: { input_tokens: 100, output_tokens: 40 } })
+      : JSON.stringify({ object: "response", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(plan) }] }] });
+    return { status: 200, async text() { return responseText; } };
+  };
+
+  let clock;
+  const ManualClock = {
+    now: 0, id: 1, tasks: [],
+    nowMs() { return ManualClock.now; },
+    schedule(delayMs, callback) {
+      const task = { id: ManualClock.id++, due: ManualClock.now + delayMs, callback, cancelled: false };
+      ManualClock.tasks.push(task);
+      return () => { task.cancelled = true; };
+    },
+    async advance(ms) {
+      const target = ManualClock.now + ms;
+      while (true) {
+        const task = ManualClock.tasks.filter((item) => !item.cancelled && item.due <= target).sort((a, b) => a.due - b.due || a.id - b.id)[0];
+        if (!task) break;
+        task.cancelled = true;
+        ManualClock.now = task.due;
+        task.callback();
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      ManualClock.now = target;
+    },
+  };
+  clock = ManualClock;
+
+  const definition = {
+    battleId: "battle:wiring", sceneEpoch: 1, battleSeed: "seed", tickDurationMs: 200,
+    moveTicks: 2, protectionTicks: 0, maxPathSteps: 6,
+    map: { ref: { arenaId: "test" }, width: 8, height: 8, passable: Array.from({ length: 8 }, () => Array(8).fill(true)) },
+    actors: [
+      {
+        actorId: "player", team: "ally", tile: { x: 3, y: 4 }, direction: 6, maxHp: 10,
+        character: { namespace: "resource.Graphics", key: "Characters/player.png" },
+        skills: [{ skillId: "strike", baseDamage: 10, windupTicks: 0, recoveryTicks: 0, range: { width: 1, height: 2, originX: 0, originY: 1, coefficientUnits: [[1000], [0]] }, effect: "strike" }],
+      },
+      {
+        actorId: "rival", team: "enemy", tile: { x: 4, y: 4 }, direction: 4, maxHp: 10,
+        character: { namespace: "resource.Graphics", key: "Characters/rival.png" },
+        skills: [{ skillId: "strike", baseDamage: 2, windupTicks: 0, recoveryTicks: 0, range: { width: 1, height: 2, originX: 0, originY: 1, coefficientUnits: [[1000], [0]] }, effect: "strike" }],
+      },
+    ],
+  };
+
+  const subsystem = createPokeManBattleSubsystem(scope, {
+    readBattleContracts: async () => ({ authority: true }),
+    resolveLabTutorialBattle: async () => definition,
+    readDeepSeekConfiguration: async () => ({ apiKey: "integration-secret" }),
+    fetchImpl: scriptedProvider,
+    settleBattleContracts: async () => ({ status: "committed", rivalIntegrity: 1, playerIntegrity: 10 }),
+    subscribeLifecycle: async (_scope, listener) => { listener("foreground"); return { close() {} }; },
+    createBattleClock: () => clock,
+  });
+
+  const outcome = subsystem.frame({
+    params: { scenarioId: "lab-rival-tutorial", source: { mapId: 4, rival: { instanceId: "rival-lab", npcId: "rival-lab" } } },
+    signal: new AbortController().signal,
+    async call() { throw new Error("no message frames expected"); },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  // The UI-only layout domain exists before any battle domain, with the
+  // Activity Panel as its stable child node.
+  assert.equal(domains.length, 1, "UI-only domain created eagerly");
+  const layoutRoot = domains[0].state.roots[0];
+  assert.deepEqual([layoutRoot.key, layoutRoot.tag], ["battle:layout", "lr-battle-layout"]);
+  assert.deepEqual([layoutRoot.children[0].key, layoutRoot.children[0].tag, layoutRoot.children[0].attrs], ["battle:activity", "lr-battle-activity", { slot: "panel" }]);
+
+  // The presentation-event listener is registered for the viewport channel.
+  const viewportListener = frameHandlers.get("pokeman.battle.viewport");
+  assert.notEqual(viewportListener, undefined);
+  const viewportChannelHandlers = presentationHandlers.get("pokeman.battle.viewport");
+  assert.equal(viewportChannelHandlers.size, 1);
+
+  // Invalid reports are ignored; the valid one unblocks presentation init.
+  const handler = [...viewportChannelHandlers][0];
+  handler({ channel: "pokeman.battle.viewport", name: "battle.viewport.changed", data: { width: -5, height: 100 }, source: { subsystemKey: "renderer", domainId: "d1", targetKey: "battle:layout" } });
+  handler({ channel: "pokeman.battle.viewport", name: "battle.viewport.changed", data: { width: 680, height: 704 }, source: { subsystemKey: "renderer", domainId: "d1", targetKey: "someone-else" } });
+  handler({ channel: "pokeman.battle.viewport", name: "battle.viewport.changed", data: { width: 680, height: 704 }, source: { subsystemKey: "renderer", domainId: "d1", targetKey: "battle:layout" } });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  // Now the battle world domain appears (map-scoped viewport accepted).
+  assert.equal(domains.length, 2, "battle world domain created after the first map report");
+  assert.equal(domains[1].state.roots[0].key, "battle:view");
+  const viewData = domains[1].state.roots[0].data;
+  assert.equal(viewData.viewportWidth, 680, "the first valid map report drives map geometry");
+  assert.equal(viewData.contentHeight, 704, "pure map height is not HUD-deducted");
+  assert.equal(viewData.barHeight, 48, "window viewport still provides the HUD bar height");
+
+  // A later, different report settles into a resize after the debounce.
+  handler({ channel: "pokeman.battle.viewport", name: "battle.viewport.changed", data: { width: 600, height: 600 }, source: { subsystemKey: "renderer", domainId: "d1", targetKey: "battle:layout" } });
+  await new Promise((resolve) => setTimeout(resolve, 130));
+  await clock.advance(200);
+  const result = await outcome;
+  assert.deepEqual(result, completed({ battleId: "battle:wiring", result: "ally_win", settlement: "committed" }));
+  assert.equal(transportCalls.length >= 4, true, "two-call decision workflow ran against the scripted provider");
+  assert.ok(transportCalls.every((call) => call.url === DEEPSEEK_RESPONSES_ENDPOINT));
+
+  // The single Activity Panel received formatted messages from one feed.
+  const activityUpdates = domains[0].updates.filter((update) => update.nodes?.[0]?.key === "battle:activity").map((update) => update.nodes[0].data.set.messages);
+  assert.ok(activityUpdates.length >= 1, "activity panel pushes happened");
+  const lastMessages = activityUpdates.at(-1);
+  const kinds = lastMessages.map((item) => item.kind);
+  for (const expected of ["decision.started", "decision.analysis_completed", "decision.accepted", "skill.started", "skill.resolved", "damage.applied", "actor.defeated", "battle.ended"]) {
+    assert.equal(kinds.includes(expected), true, `panel saw ${expected}`);
+  }
+  const analysis = lastMessages.find((item) => item.kind === "decision.analysis_completed");
+  assert.equal(analysis.text, "【玩家】思考结束：SITUATION 相邻\nSTRATEGY 立即攻击");
+  const sequences = lastMessages.map((item) => item.sequence);
+  assert.deepEqual(sequences, [...sequences].sort((left, right) => left - right));
+  assert.ok(lastMessages.length <= 100, "panel input stays bounded");
+  const started = lastMessages.find((item) => item.kind === "decision.started");
+  assert.equal(started.text, "【玩家】开始分析局势……");
+
+  // Close cleaned everything up.
+  assert.equal(domains[0].closed, 1, "UI-only layout domain closed");
+  assert.equal(viewportListener.closed, true, "presentation-event listener closed");
+  assert.ok(domains[0].emits.some((event) => event.targetKey === "battle:layout" && event.name === "battle.viewport.request") === false,
+    "no viewport request is needed while the battle never pauses");
+});
+
+test("degraded hosts without render domains or presentation events still run the legacy path", async () => {
+  let closed = 0;
+  const runtime = {
+    onPause() { return () => {}; },
+    onTransition() { return () => {}; },
+    onMessage() { return () => {}; },
+    reportDecisionAnalysis() {},
+    async run() { return { type: "cancelled" }; },
+    getSnapshot() { return { battleId: "b", status: "closed", actors: [] }; },
+    close() { closed += 1; }, pause() {}, resume() {}, cancel() {},
+  };
+  const subsystem = createPokeManBattleSubsystem({ state: {}, content: {}, events: {} }, {
+    readBattleContracts: async () => ({}), resolveLabTutorialBattle: async () => ({}),
+    readDeepSeekConfiguration: async () => ({ apiKey: "x" }), decision: {}, presentation: {}, runtime,
+    settleBattleContracts: async () => { throw new Error("cancelled must not settle"); },
+    subscribeLifecycle: async (_scope, listener) => { listener("foreground"); return { close() {} }; },
+  });
+  const outcome = await subsystem.frame({
+    params: { scenarioId: "lab-rival-tutorial", source: { mapId: 4, rival: { instanceId: "rival-lab", npcId: "rival-lab" } } },
+    signal: new AbortController().signal, async call() { throw new Error("unexpected"); },
+  });
+  assert.equal(outcome.type, "cancelled");
+  assert.equal(closed, 1);
+});

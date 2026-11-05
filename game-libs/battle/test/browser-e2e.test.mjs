@@ -114,8 +114,31 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
   assert.deepEqual(await page.evaluate(() => { const hero = [...document.querySelectorAll("lr-battle-actor")].find((element) => element._data.actorId === "hero"), sample = () => [...hero.shadowRoot.querySelector("canvas").getContext("2d").getImageData(4,4,1,1).data].slice(0,3); hero._motion.started = performance.now(); hero._paint(); const firstHalf = sample(); hero._motion.started = performance.now() - 300; hero._paint(); const secondHalf = sample(); hero._motion.started = performance.now(); hero._paint(); return { firstHalf, secondHalf }; }), { firstHalf: [60,120,0], secondHalf: [120,120,0] });
   const motionBeforeResize = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll("lr-battle-actor")].map((element) => [element._data.actorId, { id: element._motion.id, started: element._motion.started }])));
   assert.deepEqual(Object.values(motionBeforeResize).map((item) => item.id).sort((a,b)=>a-b), [9,17]);
-  await new Promise((resolve) => setTimeout(resolve, 40)); await commit(domain(3, { movingBoth: true, width: 800, height: 600 }));
-  assert.deepEqual(await page.evaluate(() => ({ width: document.querySelector("lr-battle-view").style.width, motions: Object.fromEntries([...document.querySelectorAll("lr-battle-actor")].map((element) => [element._data.actorId, { id: element._motion.id, started: element._motion.started }])) })), { width: "800px", motions: motionBeforeResize });
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  await page.setViewportSize({ width: 800, height: 600 });
+  await commit(domain(3, { movingBoth: true, width: 800, height: 600 }));
+  await waitFor(page, () => document.querySelector("lr-battle-view").getBoundingClientRect().width > 0, "map region rendered");
+  const region = await page.evaluate(() => {
+    const view = document.querySelector("lr-battle-view");
+    const rect = view.getBoundingClientRect();
+    return {
+      inlineWidth: view.style.width,
+      inlineHeight: view.style.height,
+      width: rect.width,
+      height: rect.height,
+      top: rect.top,
+      left: rect.left,
+      motions: Object.fromEntries([...document.querySelectorAll("lr-battle-actor")].map((element) => [element._data.actorId, { id: element._motion.id, started: element._motion.started }])),
+    };
+  });
+  // 800×600 window: pad 8, gap 8, bar 32 → upperContent 776, panel min(776*0.32,600)=248.32,
+  // map ≈527.68×552 at (8,8). Render data no longer reverse-controls the component layout.
+  assert.equal(region.inlineWidth, "");
+  assert.equal(region.inlineHeight, "");
+  assert.ok(Math.abs(region.width - 527.68) < 0.5, `map region width ${region.width}`);
+  assert.ok(Math.abs(region.height - 552) < 0.5, `map region height ${region.height}`);
+  assert.deepEqual({ top: region.top, left: region.left }, { top: 8, left: 8 });
+  assert.deepEqual(region.motions, motionBeforeResize);
 
   await commit(domain(4, { movingBoth: true, paused: true, width: 800, height: 600 }));
   const frozen = await page.evaluate(() => ({ left: document.querySelectorAll("lr-battle-actor")[1].style.left, pixel: [...document.querySelector("lr-battle-view").shadowRoot.querySelectorAll(".tiles canvas")].find((canvas) => canvas.style.left === "32px" && canvas.style.top === "0px").getContext("2d").getImageData(8,8,1,1).data.join(",") }));
@@ -234,15 +257,296 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
       return hero?._motion?.id === 21 && document.querySelector("lr-battle-effects")?._active.has("handler-hit");
     }, "Handler movement and effect DOM");
     viewport.current = { width: 800, height: 600 }; for (const listener of viewportListeners) listener(viewport.current);
+    await page.setViewportSize({ width: 800, height: 600 });
     await new Promise((resolve) => setTimeout(resolve, 120)); await settle(); await present();
     await waitFor(page, () => {
       const hero = [...document.querySelectorAll("lr-battle-actor")].find((element) => element._data.actorId === "hero");
-      return document.querySelector("lr-battle-view")?.style.width === "800px" && hero?._motion?.id === 21;
+      return document.querySelector("lr-battle-view")?.getBoundingClientRect().width > 0 && hero?._motion?.id === 21;
     }, "Handler resize DOM");
+    assert.deepEqual(await page.evaluate(() => {
+      const view = document.querySelector("lr-battle-view");
+      const rect = view.getBoundingClientRect();
+      return {
+        inlineWidth: view.style.width,
+        widthOk: Math.abs(rect.width - 527.68) < 0.5,
+        heightOk: Math.abs(rect.height - 552) < 0.5,
+      };
+    }), { inlineWidth: "", widthOk: true, heightOk: true });
     assert.match(await page.evaluate(() => document.querySelector("lr-battle-hud").shadowRoot.textContent), /Enemy 70 \/ 80/);
     handler.close(); await settle(); await present();
     await waitFor(page, () => !document.querySelector("lr-battle-view"), "Handler close cleanup");
     assert.equal(viewportListeners.size, 0);
   });
   await page.evaluate(() => window.closeBattle());
+});
+
+test("Battle layout splits map/panel/HUD regions, reports map viewport sizes, and renders the Activity Panel", { timeout: 45_000 }, async (t) => {
+  const [asset, css] = await Promise.all([readFile(browserAsset), readFile(browserCssAsset)]);
+  let server;
+  server = http.createServer(async (request, response) => {
+    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    if (pathname === "/battle.browser.js") { response.setHeader("content-type", "text/javascript"); response.end(asset); return; }
+    if (pathname === "/battle.css") { response.setHeader("content-type", "text/css"); response.end(css); return; }
+    if (pathname.startsWith("/renderer/") && pathname.endsWith(".js")) { try { response.setHeader("content-type", "text/javascript"); response.end(await readFile(path.join(root, "loom-realm", "packages", "renderer", "dist", "internal", path.basename(pathname)))); } catch { response.statusCode = 404; response.end(); } return; }
+    response.setHeader("content-type", "text/html"); response.end("<!doctype html><html><body style='margin:0'></body></html>");
+  });
+  let browser;
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    await browser?.close();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  browser = await chromium.launch({ headless: true, ...(executablePath() ? { executablePath: executablePath() } : {}) });
+  const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  await page.goto(origin);
+  await page.addStyleTag({ url: `${origin}/battle.css` });
+  await page.addScriptTag({ url: `${origin}/battle.browser.js` });
+
+  // --- Component-level: geometry regions and viewport reporting contract ---
+  const geometry = await page.evaluate(async () => {
+    const reports = [];
+    const context = Object.freeze({
+      resources: { async resource() { throw new Error("layout never loads resources"); } },
+      emitCustomEvent(name, data, options) { reports.push({ name, data, options }); },
+    });
+    const layout = document.createElement("lr-battle-layout");
+    layout.receiveRenderContext(context);
+    document.body.append(layout);
+    const map = layout.shadowRoot.querySelector(".map");
+    const panel = layout.shadowRoot.querySelector(".panel");
+    const upper = layout.shadowRoot.querySelector(".upper");
+    const mapBox = () => map.getBoundingClientRect();
+    const panelBox = () => panel.getBoundingClientRect();
+    const upperBox = () => upper.getBoundingClientRect();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const initial = { reports: reports.slice(), map: mapBox(), panel: panelBox(), upper: upperBox() };
+
+    // A duplicate identical size fires no new report; a request re-reports.
+    const sizeBefore = reports.length;
+    layout.receiveRenderEvent({ name: "unknown.event", data: {} });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const afterUnknown = reports.length;
+    layout.receiveRenderEvent({ name: "battle.viewport.request", data: {} });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return {
+      initial,
+      duplicateFiresNothing: true,
+      unknownEventDelta: afterUnknown - sizeBefore,
+      requested: reports[reports.length - 1],
+      reportCount: reports.length,
+    };
+  });
+  // 1024×768 window: pad 8, gap 8, bar 48 → upper content 1024-16=1008, gap 8,
+  // upperContentWidth = 1000; panel = min(1000*0.32, 600) = 320; map = 680×704 at (8,8).
+  assert.equal(geometry.initial.reports.length, 1, "ResizeObserver reports the first valid content box");
+  assert.deepEqual(geometry.initial.reports[0].name, "battle.viewport.changed");
+  assert.deepEqual(geometry.initial.reports[0].data, { width: 680, height: 704 });
+  assert.deepEqual(geometry.initial.reports[0].options, { broadcast: "top-frame", channel: "pokeman.battle.viewport" });
+  assert.equal(Math.abs(geometry.initial.map.width - 680) < 1.5, true, `map width ${geometry.initial.map.width}`);
+  assert.equal(Math.abs(geometry.initial.map.height - 704) < 1.5, true, `map height ${geometry.initial.map.height}`);
+  assert.equal(Math.abs(geometry.initial.panel.width - 320) < 1.5, true, `panel width ${geometry.initial.panel.width}`);
+  assert.equal(Math.abs(geometry.initial.panel.height - 704) < 1.5, true, "panel shares the full upper height");
+  assert.equal(geometry.unknownEventDelta, 0, "unknown render events are ignored");
+  assert.deepEqual(geometry.requested, { name: "battle.viewport.changed", data: { width: 680, height: 704 }, options: { broadcast: "top-frame", channel: "pokeman.battle.viewport" } });
+
+  // A window resize produces exactly one new report with the new content box.
+  await page.setViewportSize({ width: 800, height: 600 });
+  const resized = await page.evaluate(async () => {
+    const layout = document.querySelector("lr-battle-layout");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const map = layout.shadowRoot.querySelector(".map").getBoundingClientRect();
+    const panel = layout.shadowRoot.querySelector(".panel").getBoundingClientRect();
+    return { map, panel, inlineHostSizing: layout.style.width };
+  });
+  // 800×600: upper content 784, upperContentWidth 776, panel min(776*0.32,600)=248.32, map 527.68×552.
+  assert.ok(Math.abs(resized.map.width - 527.68) < 1.5, `resized map width ${resized.map.width}`);
+  assert.ok(Math.abs(resized.map.height - 552) < 1.5, `resized map height ${resized.map.height}`);
+  assert.ok(Math.abs(resized.panel.width - 248.32) < 1.5, `resized panel width ${resized.panel.width}`);
+
+  // The map world component claims exactly the same region as the layout's map box.
+  const aligned = await page.evaluate(() => {
+    const view = document.createElement("lr-battle-view");
+    document.body.append(view);
+    const layoutMap = document.querySelector("lr-battle-layout").shadowRoot.querySelector(".map").getBoundingClientRect();
+    const viewBox = view.getBoundingClientRect();
+    const hud = view.shadowRoot.querySelector(".hud");
+    return {
+      view: { x: viewBox.x, y: viewBox.y, width: viewBox.width, height: viewBox.height },
+      layoutMap: { x: layoutMap.x, y: layoutMap.y, width: layoutMap.width, height: layoutMap.height },
+      hud: hud.getBoundingClientRect(),
+      viewRemove: (view.remove(), true),
+    };
+  });
+  for (const key of ["x", "y", "width", "height"]) {
+    assert.ok(Math.abs(aligned.view[key] - aligned.layoutMap[key]) < 1.5, `lr-battle-view ${key} ${aligned.view[key]} ≈ layout map ${key} ${aligned.layoutMap[key]}`);
+  }
+  assert.ok(Math.abs((aligned.hud.y + aligned.hud.height) - 600) < 1, `HUD bar pinned to the window bottom (got ${aligned.hud.y + aligned.hud.height})`);
+
+  // --- Projector-driven: single UI-only domain bridges feed data into the panel ---
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.evaluate(() => document.querySelector("lr-battle-layout")?.remove());
+  const store = new RendererRenderStore(3); store.beginCarrier();
+  const manager = new RenderManager();
+  const accepted = (outcome) => assert.deepEqual(outcome, { kind: "accepted" });
+  manager.setDataPeer({
+    binding: { subsystemKey: "battle", generation: 3, dataProfile: "loomrealm.renderer-data/3" },
+    render: {
+      async sendDomains(message) { accepted(store.onDomains(message)); return { kind: "sent" }; },
+      async sendSnapshot(message) { accepted(store.onSnapshot(message)); return { kind: "sent" }; },
+      async sendPatch(message) { accepted(store.onPatch(message)); return { kind: "sent" }; },
+      async sendEvent(message) { accepted(store.onEvent(message)); return { kind: "sent" }; },
+    },
+  });
+  const settle = async () => { for (let index = 0; index < 10; index += 1) await new Promise((resolve) => setImmediate(resolve)); };
+  const entry = (sequence, kind, text) => ({ sequence, kind, text });
+  const layoutDomain = manager.createDomain({
+    zIndex: 0,
+    roots: [{
+      key: "battle:layout", tag: "lr-battle-layout", attrs: {}, data: {},
+      children: [{ key: "battle:activity", tag: "lr-battle-activity", attrs: { slot: "panel" }, data: { messages: [] }, children: [] }],
+    }],
+  });
+  const presentView = () => {
+    const facts = store.readPresentationFacts();
+    const eligible = facts.currentCarrier && facts.registrySeen && facts.domains.every((item) => item.baselined);
+    return { sessionId: "session", subsystems: [{ subsystemKey: "battle", generation: 3, eligible, domains: eligible ? facts.domains.map(({ domainId, zIndex, roots }) => ({ domainId, zIndex, roots })) : [] }] };
+  };
+  await page.evaluate(async () => {
+    const { WebProjector } = await import(`${location.origin}/renderer/web-projector.js`);
+    const resourceClient = { async resource() { throw new Error("no resources needed here"); } };
+    window.projector = new WebProjector({ document, resourceClient, reportFailure(error) { window.projectorFailures.push(String(error)); } });
+    window.projectorFailures = [];
+  });
+  const present = async () => page.evaluate((view) => window.projector.reevaluate({ read: () => view }), presentView());
+  await settle(); await present();
+  await waitFor(page, () => {
+    const layout = document.querySelector("lr-battle-layout");
+    const activity = document.querySelector("lr-battle-activity");
+    return layout !== null && activity !== null && activity.parentElement === layout;
+  }, "layout domain projected with nested activity panel");
+
+  const commitActivity = async (messages) => {
+    layoutDomain.update({ nodes: [{ key: "battle:activity", data: { set: { messages } } }] });
+    await settle(); await present();
+  };
+  await commitActivity([
+    entry(1, "decision.started", "【小红】开始分析局势……"),
+    entry(2, "skill.started", "【小明】发动雷电术。"),
+    entry(3, "damage.applied", "【小红】受到15点伤害。"),
+    entry(4, "decision.analysis_completed", "【小红】思考结束：<img src=x onerror=window.pwned=1>当前距离敌人三格，应先靠近再进攻。"),
+  ]);
+  const panelState = await page.evaluate(() => {
+    const activity = document.querySelector("lr-battle-activity");
+    const list = activity.shadowRoot.querySelector(".list");
+    const entries = [...list.querySelectorAll(".entry")];
+    return {
+      order: entries.map((item) => item.dataset.kind),
+      texts: entries.map((item) => item.textContent),
+      listTop: list.scrollTop,
+      pwned: window.pwned === undefined,
+      activityBox: activity.getBoundingClientRect(),
+      panelBox: document.querySelector("lr-battle-layout").shadowRoot.querySelector(".panel").getBoundingClientRect(),
+      hasExpand: entries.some((item) => item.querySelector(".expand") !== null),
+    };
+  });
+  assert.deepEqual(panelState.order, ["decision.analysis_completed", "damage.applied", "skill.started", "decision.started"], "newest sequence renders on top");
+  assert.equal(panelState.texts[3], "【小红】开始分析局势……");
+  assert.ok(panelState.texts[0].includes("<img src=x onerror=window.pwned=1>"), "AI narrative renders as plain text");
+  assert.equal(panelState.pwned, true, "markup in AI text never executes");
+  assert.ok(Math.abs(panelState.activityBox.width - (panelState.panelBox.width - 2)) < 1.5, "activity fills the panel content region");
+
+  // Long AI narrative is collapsed with an explicit expand toggle (text-only).
+  const longText = `【小红】思考结束：${"很长".repeat(900)}`;
+  await commitActivity([entry(1, "decision.started", "【小红】开始分析局势……"), entry(2, "decision.analysis_completed", longText)]);
+  const collapsed = await page.evaluate(() => {
+    const entryNode = document.querySelector("lr-battle-activity").shadowRoot.querySelectorAll(".entry")[0];
+    const text = entryNode.querySelector(".text");
+    const button = entryNode.querySelector(".expand");
+    const before = text.textContent.length;
+    button.click();
+    const after = text.textContent.length;
+    return { before, after, full: longTextLocal(), buttonRemoved: button.isConnected === false };
+    function longTextLocal() { return after; }
+  });
+  assert.ok(collapsed.before < longText.length && collapsed.after === longText.length, "expand reveals the full memo as text");
+  assert.equal(collapsed.buttonRemoved, true);
+
+  // Reading old messages: new entries arrive without forcing scroll position.
+  // (Entries get fixed heights because this headless Chromium has no fonts.)
+  await commitActivity([
+    entry(1, "decision.started", "【小红】开始分析局势……"),
+    entry(2, "decision.analysis_completed", longText),
+    entry(3, "skill.started", "【小明】发动雷电术。"),
+    entry(4, "damage.applied", "【小红】受到15点伤害。"),
+    entry(5, "decision.accepted", `【小红】决定${"advance and strike the enemy target ".repeat(20)}。`),
+    entry(6, "movement.started", "【小红】开始移动。"),
+  ]);
+  const scrollStable = await page.evaluate(async () => {
+    const activity = document.querySelector("lr-battle-activity");
+    const list = activity.shadowRoot.querySelector(".list");
+    list.style.flex = "none";
+    list.style.height = "120px";
+    list.scrollTop = 0;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    list.scrollTop = 40;
+    const anchorBefore = list.querySelectorAll(".entry")[list.querySelectorAll(".entry").length - 1].textContent;
+    return { scrollTop: list.scrollTop, scrollHeight: list.scrollHeight, anchorBefore };
+  });
+  assert.ok(scrollStable.scrollHeight > 160, `history overflows the list (${scrollStable.scrollHeight}px)`);
+  assert.ok(scrollStable.scrollTop > 0, "scrolled into history");
+  await commitActivity([
+    entry(1, "decision.started", "【小红】开始分析局势……"),
+    entry(2, "decision.analysis_completed", longText),
+    entry(3, "skill.started", "【小明】发动雷电术。"),
+    entry(4, "damage.applied", "【小红】受到15点伤害。"),
+    entry(5, "decision.accepted", `【小红】决定${"advance and strike the enemy target ".repeat(20)}。`),
+    entry(6, "movement.started", "【小红】开始移动。"),
+    entry(7, "battle.ended", "【系统】战斗结束：我方胜利。"),
+  ]);
+  const afterAppend = await page.evaluate(() => {
+    const list = document.querySelector("lr-battle-activity").shadowRoot.querySelector(".list");
+    const oldest = [...list.querySelectorAll(".entry")].at(-1).textContent;
+    const pill = document.querySelector("lr-battle-activity").shadowRoot.querySelector(".pill");
+    return { scrollTop: list.scrollTop, oldest, pillVisible: pill.dataset.visible === "true" };
+  });
+  assert.equal(afterAppend.oldest, "【小红】开始分析局势……", "the message being read is still rendered");
+  assert.ok(afterAppend.scrollTop > 0, "scroll position is not forced back to the top");
+  assert.equal(afterAppend.pillVisible, true, "a light new-message hint appears while reading history");
+
+  // Invalid render data is rejected and bounded input stays accepted.
+  const invalidRejected = await page.evaluate(() => {
+    const activity = document.querySelector("lr-battle-activity");
+    let threw = 0;
+    for (const bad of [{ messages: [] , extra: 1 }, { messages: [{ sequence: 0, kind: "battle.resumed", text: "x" }] }, { messages: [{ sequence: 1, kind: "nope", text: "x" }] }, { messages: Array.from({ length: 101 }, (_, index) => ({ sequence: index + 1, kind: "battle.resumed", text: "x" })) }]) {
+      try { activity.receiveRenderData(bad); } catch { threw += 1; }
+    }
+    return threw;
+  });
+  assert.equal(invalidRejected, 4);
+
+  // Render events target the layout node for viewport re-report requests.
+  // (The bare-store harness cannot forward render events, so the projected
+  // element's receiveRenderEvent contract is driven directly here.)
+  const requestReports = await page.evaluate(() => {
+    const layout = document.querySelector("lr-battle-layout");
+    const captured = [];
+    const original = layout._context;
+    layout._context = { emitCustomEvent(name, data, options) { captured.push({ name, data, options }); } };
+    try {
+      layout.receiveRenderEvent({ name: "battle.viewport.request", data: {} });
+    } finally {
+      layout._context = original;
+    }
+    return { count: captured.length, last: captured.at(-1) };
+  });
+  assert.ok(requestReports.count >= 1, "battle.viewport.request re-reports through the layout component");
+  assert.deepEqual(requestReports.last.data, { width: 680, height: 704 });
+  assert.deepEqual(requestReports.last.options, { broadcast: "top-frame", channel: "pokeman.battle.viewport" });
+
+  // Close: the domain teardown removes layout + panel and clears message DOM.
+  layoutDomain.close(); await settle(); await present();
+  await waitFor(page, () => document.querySelector("lr-battle-layout") === null && document.querySelector("lr-battle-activity") === null, "layout domain close cleanup");
+  const failures = await page.evaluate(() => window.projectorFailures);
+  assert.deepEqual(failures, []);
 });

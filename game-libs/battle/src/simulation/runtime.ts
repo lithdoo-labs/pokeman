@@ -1,5 +1,6 @@
 import {
   compareActorId,
+  type BattleMessage,
   type BattlePauseEvent,
   type BattlePauseReason,
   type BattleResult,
@@ -8,8 +9,11 @@ import {
   type BattleSceneInit,
   type BattleSnapshot,
   type DecisionCompletion,
+  type DecisionMetric,
+  type DecisionMetricsSink,
   type DecisionPort,
   type DecisionRequest,
+  type PlayerVisibleDecisionReason,
   type PresentationFailure,
   type PresentationPort,
 } from "../contracts.js";
@@ -18,7 +22,7 @@ import { ensureDecision, type RequestDecisionCommand } from "./plan.js";
 import { DecisionInbox, ScheduledEventQueue } from "./queues.js";
 import { ReplayRecorder, type ReplayDecisionRecord, type ReplayRecord } from "./replay.js";
 import { createInitialState, type BattleState, type ResolvedBattleDefinition } from "./state.js";
-import { createInitialProjection, createSnapshot, processOneTick } from "./tick.js";
+import { createInitialProjection, createSnapshot, processOneTick, type SimulationMessageFact } from "./tick.js";
 
 export interface BattleClock {
   nowMs(): number;
@@ -35,6 +39,20 @@ export interface BattleRuntime {
   getReplay(): ReplayRecord;
   onPause(listener: (event: BattlePauseEvent) => void): () => void;
   onTransition(listener: (event: BattleTransition) => void): () => void;
+  /**
+   * Observe the ordered, append-only battle message stream (Runtime events,
+   * committed Simulation facts, and validated non-authoritative Call A
+   * analysis text) through one strictly increasing sequence. Listener errors
+   * are isolated and never affect battle authority. Register before run().
+   */
+  onMessage(listener: (message: BattleMessage) => void): () => void;
+  /**
+   * Trusted, best-effort, non-authoritative observation entry for a concrete
+   * Decision's optional Call A processMessageObserver. Invalid, stale,
+   * aborted, superseded, or duplicated reports are silently dropped; this
+   * never mutates Decision/Simulation/Replay state.
+   */
+  reportDecisionAnalysis(request: DecisionRequest, strategyMemo: string): void;
 }
 
 export interface BattleSimulationDependencies {
@@ -42,6 +60,8 @@ export interface BattleSimulationDependencies {
   readonly signal: AbortSignal;
   readonly decision: DecisionPort;
   readonly presentation: PresentationPort;
+  /** Optional best-effort decision metrics sink; failures are isolated. */
+  readonly metricsSink?: DecisionMetricsSink;
 }
 
 export interface BattleReplayDependencies {
@@ -55,12 +75,24 @@ interface RequestHandle {
   readonly controller: AbortController;
 }
 
+interface RequestTiming {
+  readonly invokedAtMs: number;
+  enqueuedAtMs?: number;
+  enqueuedTick?: number;
+}
+
+interface PlanAcceptanceMarker {
+  readonly actorId: string;
+  readonly acceptedTick: number;
+}
+
 interface RuntimeOptions {
   readonly clock: BattleClock;
   readonly signal: AbortSignal;
   readonly presentation: PresentationPort;
   readonly decision?: DecisionPort;
   readonly replaySource?: ReplayRecord;
+  readonly metricsSink?: DecisionMetricsSink;
 }
 
 interface DecisionAvailabilityGuard {
@@ -69,6 +101,20 @@ interface DecisionAvailabilityGuard {
 }
 
 const MAX_CONSECUTIVE_DECISION_FAILURES = 3;
+
+const PLAYER_VISIBLE_DECISION_REASONS: ReadonlySet<string> = new Set([
+  "initial",
+  "damaging_hit",
+  "plan_exhausted",
+  "plan_failed",
+]);
+
+/** Hard safety bound for non-authoritative analysis text payloads. */
+const MAX_ANALYSIS_TEXT_CHARS = 10_000;
+
+function isPlayerVisibleDecisionReason(value: string): value is PlayerVisibleDecisionReason {
+  return PLAYER_VISIBLE_DECISION_REASONS.has(value);
+}
 
 function isClassifiedPresentation(code: unknown): code is "PRESENTATION_CONTENT_FAILED" | "PRESENTATION_COMMIT_FAILED" {
   return code === "PRESENTATION_CONTENT_FAILED" || code === "PRESENTATION_COMMIT_FAILED";
@@ -80,6 +126,17 @@ function errorCode(error: unknown): unknown {
 
 function samePoint(left: { x: number; y: number }, right: { x: number; y: number }): boolean {
   return left.x === right.x && left.y === right.y;
+}
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+type BattleMessagePayload = DistributiveOmit<BattleMessage, "id" | "sequence" | "tick" | "elapsedMs">;
+
+function deepFreezeMessage<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreezeMessage(child);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 function normalizeCompletion(value: unknown, expected: DecisionRequest): DecisionCompletion {
@@ -132,6 +189,13 @@ export class BattleRuntimeImpl implements BattleRuntime {
   readonly #decisionAvailabilityGuard: DecisionAvailabilityGuard | null;
   readonly #pauseListeners = new Set<(event: BattlePauseEvent) => void>();
   readonly #transitionListeners = new Set<(event: BattleTransition) => void>();
+  readonly #messageListeners = new Set<(message: BattleMessage) => void>();
+  readonly #metricsSink?: DecisionMetricsSink;
+  readonly #requestTimings = new Map<string, RequestTiming>();
+  readonly #planAcceptance = new Map<string, PlanAcceptanceMarker>();
+  readonly #visibleStartedRequests = new Set<string>();
+  readonly #reportedAnalysis = new Set<string>();
+  #messageSequence = 0;
   #runCalled = false;
   #runResolve: ((result: BattleResult) => void) | null = null;
   #runReject: ((error: unknown) => void) | null = null;
@@ -151,6 +215,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
     this.#decision = options.decision;
     this.#presentation = options.presentation;
     this.#replaySource = options.replaySource;
+    this.#metricsSink = options.metricsSink;
     this.#decisionAvailabilityGuard = options.replaySource === undefined
       ? { consecutiveFailures: 0, circuitOpen: false }
       : null;
@@ -241,6 +306,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
       this.#runningAnchorMs = this.#readClock();
       this.#state.pauseReason = null;
       this.#transition("running");
+      this.#dispatchMessage(null, { type: "battle.resumed" });
       this.#scheduleNextWake();
     } catch (error) {
       this.#handlePresentationOrClockThrow(error);
@@ -287,6 +353,114 @@ export class BattleRuntimeImpl implements BattleRuntime {
     return () => this.#transitionListeners.delete(listener);
   }
 
+  onMessage(listener: (message: BattleMessage) => void): () => void {
+    if (typeof listener !== "function") throw new TypeError("Battle message listener must be a function");
+    this.#messageListeners.add(listener);
+    return () => this.#messageListeners.delete(listener);
+  }
+
+  reportDecisionAnalysis(request: DecisionRequest, strategyMemo: string): void {
+    if (this.#terminalCommitted || this.#state.status === "closed" || this.#state.status === "settled") return;
+    if (request === null || typeof request !== "object") return;
+    if (typeof strategyMemo !== "string" || strategyMemo.trim().length === 0) return;
+    if (!this.#requestFacts.has(request.requestId)) return;
+    if (!this.#visibleStartedRequests.has(request.requestId)) return;
+    if (this.#reportedAnalysis.has(request.requestId)) return;
+    const actor = this.#state.actors.get(request.actorId);
+    if (actor === undefined || actor.decision.type !== "thinking") return;
+    if (actor.decision.requestId !== request.requestId || actor.decision.generation !== request.generation) return;
+    if (actor.decision.attempt !== 0 || request.correction !== undefined) return;
+    this.#reportedAnalysis.add(request.requestId);
+    const text = strategyMemo.length > MAX_ANALYSIS_TEXT_CHARS
+      ? strategyMemo.slice(0, MAX_ANALYSIS_TEXT_CHARS)
+      : strategyMemo;
+    this.#dispatchMessage(null, { type: "decision.analysis_completed", actorId: request.actorId, text });
+  }
+
+  /**
+   * Allocate id/sequence/elapsedMs for one message and notify listeners.
+   * `payload` omits the BattleMessageBase fields; tick is null for Runtime
+   * lifecycle events outside any Tick.
+   */
+  #dispatchMessage(tick: number | null, payload: BattleMessagePayload): void {
+    this.#messageSequence += 1;
+    const sequence = this.#messageSequence;
+    const message = deepFreezeMessage({
+      id: `${this.#state.battleId}:message:${sequence}`,
+      sequence,
+      tick,
+      elapsedMs: this.#messageElapsedMs(),
+      ...payload,
+    } as BattleMessage);
+    for (const listener of [...this.#messageListeners]) {
+      try { listener(message); } catch { /* observers do not own Battle authority */ }
+    }
+  }
+
+  #publishMessageFacts(facts: readonly SimulationMessageFact[]): void {
+    const tick = this.#state.currentTick;
+    for (const fact of facts) {
+      if (fact.type === "movement.started") this.#recordActionStart(fact.movementIntentId, tick);
+      else if (fact.type === "skill.started") this.#recordSkillActionStart(fact.actorId, tick);
+      this.#dispatchMessage(tick, fact as BattleMessagePayload);
+    }
+  }
+
+  #messageElapsedMs(): number {
+    if (this.#state.status !== "running") return this.#accumulatedRunningMs;
+    try {
+      return this.#logicalElapsed();
+    } catch {
+      return this.#accumulatedRunningMs;
+    }
+  }
+
+  #safeNowMs(): number {
+    try {
+      return this.#readClock();
+    } catch {
+      return this.#lastClockMs ?? 0;
+    }
+  }
+
+  #recordMetric(metric: DecisionMetric): void {
+    const sink = this.#metricsSink;
+    if (sink === undefined) return;
+    try {
+      const outcome = sink.record(metric);
+      if (outcome !== null && typeof outcome === "object" && typeof (outcome as Promise<void>).catch === "function") {
+        (outcome as Promise<void>).catch(() => { /* isolated */ });
+      }
+    } catch { /* metrics must never affect battle */ }
+  }
+
+  #recordActionStart(planId: string, tick: number): void {
+    const marker = this.#planAcceptance.get(planId);
+    if (marker === undefined) return;
+    this.#planAcceptance.delete(planId);
+    this.#recordMetric({
+      scope: "runtime",
+      stage: "acceptance_to_action_start",
+      tickDelay: Math.max(0, tick - marker.acceptedTick),
+      outcome: "accepted",
+    });
+  }
+
+  #recordSkillActionStart(actorId: string, tick: number): void {
+    for (const [planId, marker] of [...this.#planAcceptance.entries()]) {
+      if (marker.actorId !== actorId) continue;
+      this.#planAcceptance.delete(planId);
+      this.#recordMetric({
+        scope: "runtime",
+        stage: "acceptance_to_action_start",
+        tickDelay: Math.max(0, tick - marker.acceptedTick),
+        outcome: "accepted",
+      });
+      void planId;
+      return;
+    }
+  }
+
   #transition(to: BattleStatus): void {
     const from = this.#state.status;
     const legal: Readonly<Record<BattleStatus, readonly BattleStatus[]>> = {
@@ -308,6 +482,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
   #commitPause(reason: BattlePauseReason): void {
     this.#state.pauseReason = reason;
     this.#transition("paused");
+    this.#dispatchMessage(null, { type: "battle.paused", reason });
     const event = Object.freeze({ reason });
     for (const listener of [...this.#pauseListeners]) {
       try { listener(event); } catch { /* operational observers do not own Battle authority */ }
@@ -373,9 +548,20 @@ export class BattleRuntimeImpl implements BattleRuntime {
         for (const record of output.decisionRecords) {
           this.#recorder.appendDecision(record);
           this.#requestFacts.delete(record.requestId);
+          this.#recordConsumptionMetric(record);
         }
         this.#recorder.appendTick(output.replayTick);
         this.#verifyReplayTick(output.replayTick, output.decisionRecords);
+        // Simulation facts are published in array order before any new
+        // decision turn is announced for this Tick.
+        this.#publishMessageFacts(output.messageFacts);
+        // A session-fatal decision failure that will terminate the Battle is
+        // announced once, before battle.ended and without provider internals.
+        for (const record of output.decisionRecords) {
+          if (record.consumeOutcome.type === "session_fatal") {
+            this.#dispatchMessage(this.#state.currentTick, { type: "decision.failed", actorId: record.actorId, reason: "unavailable" });
+          }
+        }
         for (const actorId of output.abortActorIds) this.#abortRequest(actorId);
         try {
           this.#presentation.render(output.projection);
@@ -432,6 +618,32 @@ export class BattleRuntimeImpl implements BattleRuntime {
     }
   }
 
+  #recordConsumptionMetric(record: ReplayDecisionRecord): void {
+    const timing = this.#requestTimings.get(record.requestId);
+    if (timing !== undefined) {
+      const outcome = record.consumeOutcome.type === "accepted" ? "accepted" as const
+        : record.consumeOutcome.type === "rejected" ? "rejected" as const
+        : record.consumeOutcome.type === "stale" ? "stale" as const
+        : "failed" as const;
+      this.#recordMetric({
+        scope: "runtime",
+        stage: "completion_to_acceptance",
+        ...(timing.enqueuedAtMs === undefined ? {} : { durationMs: Math.max(0, this.#safeNowMs() - timing.enqueuedAtMs) }),
+        ...(timing.enqueuedTick === undefined ? {} : { tickDelay: Math.max(0, record.consumedTick - timing.enqueuedTick) }),
+        outcome,
+      });
+      this.#requestTimings.delete(record.requestId);
+    }
+    if (record.consumeOutcome.type === "accepted") {
+      this.#planAcceptance.set(record.consumeOutcome.planId, { actorId: record.actorId, acceptedTick: record.consumeOutcome.acceptedTick });
+      // Keep the marker table bounded: a battle never has many live plans.
+      if (this.#planAcceptance.size > 64) {
+        const oldest = this.#planAcceptance.keys().next().value;
+        if (oldest !== undefined) this.#planAcceptance.delete(oldest);
+      }
+    }
+  }
+
   #invokeCommands(commands: readonly RequestDecisionCommand[]): void {
     for (const command of commands) {
       if (this.#state.status !== "running" && this.#state.status !== "initializing") return;
@@ -440,6 +652,10 @@ export class BattleRuntimeImpl implements BattleRuntime {
         || actor.decision.requestId !== command.request.requestId
         || actor.decision.generation !== command.request.generation) continue;
       this.#requestFacts.set(command.request.requestId, command.request);
+      if (isPlayerVisibleDecisionReason(command.reason)) {
+        this.#visibleStartedRequests.add(command.request.requestId);
+        this.#dispatchMessage(null, { type: "decision.started", actorId: command.request.actorId, reason: command.reason });
+      }
       if (this.#replaySource !== undefined) {
         this.#matchReplayRequest(command.request);
         continue;
@@ -453,6 +669,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
     this.#abortRequest(request.actorId);
     const controller = new AbortController();
     this.#requests.set(request.actorId, { requestId: request.requestId, controller });
+    this.#requestTimings.set(request.requestId, { invokedAtMs: this.#safeNowMs() });
     let promise: Promise<DecisionCompletion>;
     try {
       promise = this.#decision.decide(request, controller.signal);
@@ -470,6 +687,16 @@ export class BattleRuntimeImpl implements BattleRuntime {
       } catch (error) {
         this.#rejectInvariant(error);
         return;
+      }
+      const timing = this.#requestTimings.get(request.requestId);
+      if (timing !== undefined) {
+        this.#requestTimings.set(request.requestId, { ...timing, enqueuedAtMs: this.#safeNowMs(), enqueuedTick: this.#state.currentTick });
+        this.#recordMetric({
+          scope: "runtime",
+          stage: "request_to_completion",
+          durationMs: Math.max(0, this.#safeNowMs() - timing.invokedAtMs),
+          outcome: completion.type === "completed" ? "completed" as const : "failed" as const,
+        });
       }
       // Aborted requests release their tombstone immediately. If a provider
       // nevertheless resolves later, restore only the facts needed to record
@@ -491,6 +718,17 @@ export class BattleRuntimeImpl implements BattleRuntime {
     if (handle === undefined) return;
     this.#requests.delete(actorId);
     this.#requestFacts.delete(handle.requestId);
+    const timing = this.#requestTimings.get(handle.requestId);
+    if (timing !== undefined && timing.enqueuedAtMs === undefined) {
+      this.#requestTimings.delete(handle.requestId);
+      this.#recordMetric({
+        scope: "runtime",
+        stage: "request_to_completion",
+        durationMs: Math.max(0, this.#safeNowMs() - timing.invokedAtMs),
+        outcome: "aborted",
+      });
+    }
+    this.#visibleStartedRequests.delete(handle.requestId);
     handle.controller.abort();
   }
 
@@ -569,6 +807,10 @@ export class BattleRuntimeImpl implements BattleRuntime {
     this.#requestFacts.clear();
     for (const actorId of [...this.#requests.keys()]) this.#abortRequest(actorId);
     this.#removeSignalListener();
+    // battle.ended is published exactly once with the final result, before
+    // PresentationPort.close() and before run() resolves.
+    this.#dispatchMessage(null, { type: "battle.ended", result: Object.freeze(structuredClone(result)) });
+    this.#releaseMessageBookkeeping();
     if (result.type === "ally_win" || result.type === "enemy_win" || result.type === "simultaneous_defeat") {
       this.#transition("settled");
     } else {
@@ -582,6 +824,14 @@ export class BattleRuntimeImpl implements BattleRuntime {
     return true;
   }
 
+  #releaseMessageBookkeeping(): void {
+    this.#messageListeners.clear();
+    this.#visibleStartedRequests.clear();
+    this.#reportedAnalysis.clear();
+    this.#requestTimings.clear();
+    this.#planAcceptance.clear();
+  }
+
   #rejectInvariant(error: unknown): void {
     if (this.#terminalCommitted || this.#state.status === "closed" || this.#state.status === "settled") return;
     this.#cancelWake();
@@ -591,6 +841,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
     for (const actorId of [...this.#requests.keys()]) this.#abortRequest(actorId);
     this.#removeSignalListener();
     this.#recorder.rejectInvariant();
+    this.#releaseMessageBookkeeping();
     try { this.#presentation.close(); } catch { /* cleanup is best effort */ }
     this.#transition("closed");
     this.#runReject?.(error);
@@ -605,6 +856,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
     this.#requestFacts.clear();
     for (const actorId of [...this.#requests.keys()]) this.#abortRequest(actorId);
     this.#removeSignalListener();
+    this.#releaseMessageBookkeeping();
     this.#presentation.close();
   }
 
@@ -614,6 +866,7 @@ export class BattleRuntimeImpl implements BattleRuntime {
       actor.decision = { type: "none" };
       actor.activePlan = null;
       actor.pendingPlan = null;
+      actor.movementIntent = null;
       if (actor.action.type !== "dead") actor.action = { type: "idle" };
     }
   }

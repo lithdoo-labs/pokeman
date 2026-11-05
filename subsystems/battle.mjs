@@ -2,12 +2,107 @@ import { cancelled, completed, defineSubsystem, failed } from "@loomrealm/subsys
 import { BattlePresentationBuilder } from "@pokeman/game-battle/presentation";
 import { BattleSimulationBuilder } from "@pokeman/game-battle/simulation";
 import { DeepSeekDecision } from "@pokeman/game-battle/decision";
+import { DeepSeekProfiledDecision, DEEPSEEK_CALL_A_PROFILES } from "@pokeman/game-battle/decision-profiled";
+import { createBattleMessageFeed, formatActivityEntries } from "@pokeman/game-battle/messages";
 import { subscribeHostLifecycle } from "@loomrealm/session-events";
 import { DEEPSEEK_SESSION_CONFIG_KEY, isExactDeepSeekSessionConfig } from "./deepseek-config.mjs";
 import { readBattleContracts, settleBattleContracts } from "./business-state.mjs";
 import { resolveLabTutorialBattle } from "./battle-content.mjs";
 
 export const DEEPSEEK_RESPONSES_ENDPOINT = "https://api.deepseek.com/responses";
+
+// Battle Message Feed wiring (single Activity Panel; design §6.5).
+export const BATTLE_VIEWPORT_CHANNEL = "pokeman.battle.viewport";
+export const BATTLE_LAYOUT_RENDER_KEY = "battle:layout";
+export const BATTLE_ACTIVITY_RENDER_KEY = "battle:activity";
+export const BATTLE_VIEWPORT_CHANGED_EVENT = "battle.viewport.changed";
+export const BATTLE_VIEWPORT_REQUEST_EVENT = "battle.viewport.request";
+export const BATTLE_MESSAGE_FEED_CAPACITY = 100;
+export const BATTLE_ACTOR_DISPLAY_NAMES = Object.freeze({ player: "玩家", rival: "对手" });
+export const BATTLE_SKILL_DISPLAY_NAMES = Object.freeze({ firebolt: "火花弹", grab: "擒抓" });
+
+/**
+ * Selected Call A profile (see test/records/call-a-performance-records.md):
+ * `call-a-low` kept the frozen prompt and token ceiling while roughly halving
+ * the observed Call A p50 latency of the v0 `high` control, with comparable
+ * one-shot Plan acceptance in the recorded small samples. `v0-quality`
+ * remains the frozen control profile; `POKEMAN_BATTLE_CALL_A_PROFILE` may
+ * override the product default with any known profile id for trials.
+ */
+export const BATTLE_CALL_A_PROFILE_DEFAULT = "call-a-low";
+
+function selectCallAProfile() {
+  const requested = process.env.POKEMAN_BATTLE_CALL_A_PROFILE;
+  return typeof requested === "string" && Object.hasOwn(DEEPSEEK_CALL_A_PROFILES, requested)
+    ? requested
+    : BATTLE_CALL_A_PROFILE_DEFAULT;
+}
+
+function createBattleActivityDomainState() {
+  return Object.freeze({
+    zIndex: 0,
+    roots: Object.freeze([{
+      key: BATTLE_LAYOUT_RENDER_KEY,
+      tag: "lr-battle-layout",
+      attrs: Object.freeze({}),
+      data: Object.freeze({}),
+      children: Object.freeze([{
+        key: BATTLE_ACTIVITY_RENDER_KEY,
+        tag: "lr-battle-activity",
+        attrs: Object.freeze({ slot: "panel" }),
+        data: Object.freeze({ messages: Object.freeze([]) }),
+        children: Object.freeze([]),
+      }]),
+    }]),
+  });
+}
+
+/**
+ * Create the map-scoped Viewport adapter fed by the layout component's
+ * battle.viewport.changed reports. Returns null when presentation events or
+ * render domains are unavailable (tests / degraded hosts) so the
+ * presentation falls back to the legacy whole-window viewport.
+ */
+function createMapViewportBridge(scope, frame) {
+  if (typeof scope.createRenderDomain !== "function") return null;
+  if (scope.presentationEvents === null || typeof scope.presentationEvents !== "object"
+    || typeof scope.presentationEvents.createListener !== "function") return null;
+  const listeners = new Set();
+  let current = null;
+  let listener;
+  try {
+    listener = scope.presentationEvents.createListener({ frame, channels: [BATTLE_VIEWPORT_CHANNEL] });
+  } catch {
+    return null;
+  }
+  try {
+    listener.on(BATTLE_VIEWPORT_CHANNEL, (event) => {
+      if (event === null || typeof event !== "object" || event.name !== BATTLE_VIEWPORT_CHANGED_EVENT) return;
+      const source = event.source;
+      if (source === null || typeof source !== "object" || source.targetKey !== BATTLE_LAYOUT_RENDER_KEY) return;
+      const width = event.data?.width;
+      const height = event.data?.height;
+      if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) return;
+      if (current !== null && current.width === width && current.height === height) return;
+      current = Object.freeze({ width, height });
+      for (const notify of [...listeners]) {
+        try { notify(current); } catch { /* viewport observers are isolated */ }
+      }
+    });
+  } catch {
+    try { listener.close(); } catch { /* best effort */ }
+    return null;
+  }
+  const adapter = Object.freeze({
+    get current() { return current; },
+    subscribe(notify) {
+      if (typeof notify !== "function") throw new TypeError("Viewport listener must be a function");
+      listeners.add(notify);
+      return () => listeners.delete(notify);
+    },
+  });
+  return { adapter, listener };
+}
 
 const PAUSE_PROMPTS = Object.freeze({
   "host-background": Object.freeze({
@@ -92,7 +187,9 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
   const resolveBattle = dependencies.resolveLabTutorialBattle ?? resolveLabTutorialBattle;
   const readConfiguration = dependencies.readDeepSeekConfiguration ?? readDeepSeekConfiguration;
   const makeTransport = dependencies.createDeepSeekTransport ?? createDeepSeekTransport;
-  const Decision = dependencies.DeepSeekDecision ?? DeepSeekDecision;
+  // dependencies.DeepSeekDecision stays the explicit frozen-v0 escape hatch;
+  // the product default is the versioned profiled implementation using the
+  // selected Call A profile.
   const PresentationBuilder = dependencies.BattlePresentationBuilder ?? BattlePresentationBuilder;
   const SimulationBuilder = dependencies.BattleSimulationBuilder ?? BattleSimulationBuilder;
   const clockFactory = dependencies.createBattleClock ?? createBattleClock;
@@ -105,9 +202,48 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
       let lifecycle;
       let removePauseListener;
       let removeTransitionListener;
+      let removeMessageListener;
       let childFailure;
       let hostLifecycleState;
       let promptInFlight = false;
+
+      // --- Battle Message Feed + fixed battle layout (single panel) -------
+      // The UI-only RenderDomain is created before BattlePresentation
+      // initialization so the measurable map container exists before the
+      // first RenderProjection; the Activity Panel is its stable child node.
+      const feed = createBattleMessageFeed({ capacity: BATTLE_MESSAGE_FEED_CAPACITY });
+      const displayNames = Object.freeze({
+        actors: BATTLE_ACTOR_DISPLAY_NAMES,
+        skills: BATTLE_SKILL_DISPLAY_NAMES,
+      });
+      const decisionMetrics = [];
+      const metricsSink = { record: (metric) => { if (decisionMetrics.length < 4096) decisionMetrics.push(metric); } };
+      let uiDomain = null;
+      if (typeof scope.createRenderDomain === "function") {
+        uiDomain = scope.createRenderDomain(createBattleActivityDomainState());
+      }
+      let activityPushPending = false;
+      const pushActivityPanel = () => {
+        activityPushPending = false;
+        if (uiDomain === null) return;
+        try {
+          const messages = formatActivityEntries(feed.getSnapshot(), displayNames);
+          uiDomain.update({ nodes: [{ key: BATTLE_ACTIVITY_RENDER_KEY, data: { set: { messages } } }] });
+        } catch { /* panel updates never affect battle authority */ }
+      };
+      const scheduleActivityPanel = () => {
+        if (uiDomain === null || activityPushPending) return;
+        activityPushPending = true;
+        queueMicrotask(pushActivityPanel);
+      };
+      const viewportBridge = createMapViewportBridge(scope, frame);
+      const requestViewportReport = () => {
+        if (uiDomain === null) return;
+        try {
+          uiDomain.emit({ targetKey: BATTLE_LAYOUT_RENDER_KEY, name: BATTLE_VIEWPORT_REQUEST_EVENT, data: {} });
+        } catch { /* re-report requests are best-effort */ }
+      };
+
       const showPendingPrompt = async () => {
         if (runtime === undefined || hostLifecycleState !== "foreground" || promptInFlight) return;
         const snapshot = runtime.getSnapshot();
@@ -138,17 +274,38 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
         const authority = await readContracts(scope.state, { signal: frame.signal });
         const definition = await resolveBattle(scope.content, authority, { signal: frame.signal });
         const config = await readConfiguration(scope.state, frame.signal);
-        const decision = dependencies.decision ?? new Decision({ transport: makeTransport(config.apiKey, dependencies.fetchImpl) });
-        const presentation = dependencies.presentation ?? new PresentationBuilder(scope, frame).build();
+        const transport = makeTransport(config.apiKey, dependencies.fetchImpl);
+        const processMessageObserver = (request, strategyMemo) => {
+          // Call A visible memo bypass → Runtime request-validity gate.
+          try { runtime?.reportDecisionAnalysis?.(request, strategyMemo); } catch { /* isolated */ }
+        };
+        const decision = dependencies.decision
+          ?? (dependencies.DeepSeekDecision !== undefined
+            ? new (dependencies.DeepSeekDecision ?? DeepSeekDecision)({ transport }, processMessageObserver)
+            : new DeepSeekProfiledDecision({ transport, profile: selectCallAProfile(), metricsSink }, processMessageObserver));
+        const presentation = dependencies.presentation
+          ?? new PresentationBuilder(scope, frame, viewportBridge === null ? undefined : { viewport: viewportBridge.adapter }).build();
         runtime = dependencies.runtime ?? new SimulationBuilder({
-          clock: dependencies.clock ?? clockFactory(), signal: frame.signal, decision, presentation,
+          clock: dependencies.clock ?? clockFactory(), signal: frame.signal, decision, presentation, metricsSink,
         }).build(definition);
 
+        // Message subscription happens before runtime.run() so the initial
+        // decision.started of the very first Tick cannot be missed.
+        if (typeof runtime.onMessage === "function") {
+          removeMessageListener = runtime.onMessage((message) => {
+            try { feed.append(message); } catch { /* feed failures never affect battle */ }
+            scheduleActivityPanel();
+          });
+        }
         removePauseListener = runtime.onPause(() => {
           void showPendingPrompt();
         });
-        removeTransitionListener = runtime.onTransition(({ to }) => {
+        removeTransitionListener = runtime.onTransition(({ from, to }) => {
           if (to === "running" && hostLifecycleState === "background") runtime.pause("host-background");
+          // A child Message Frame may have shadowed the top frame and lost a
+          // resize notification; ask the layout component to re-report once
+          // the battle becomes the top frame again.
+          if (from === "paused" && to === "running") requestViewportReport();
         });
         const run = runtime.run();
         const result = await run;
@@ -169,6 +326,13 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
         lifecycle?.close();
         removeTransitionListener?.();
         removePauseListener?.();
+        removeMessageListener?.();
+        // Battle close clears the bounded Feed, the presentation-event
+        // subscription and the UI-only layout domain; no post-battle panel.
+        feed.clear();
+        try { viewportBridge?.listener.close(); } catch { /* best effort */ }
+        try { uiDomain?.close(); } catch { /* best effort */ }
+        uiDomain = null;
         runtime?.close();
       }
     },

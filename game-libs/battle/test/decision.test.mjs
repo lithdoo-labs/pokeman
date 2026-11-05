@@ -489,3 +489,58 @@ test("optional credential-gated real DeepSeek smoke", {
   const completion = await new DeepSeekDecision({ transport }).decide(request(), new AbortController().signal);
   assert.equal(completion.type, "completed");
 });
+
+test("optional Call A processMessageObserver receives the byte-identical visible memo exactly once", async () => {
+  const observed = [];
+  const transport = new FakeDeepSeekTransport()
+    .enqueueResponse(200, providerResponse("SITUATION\n敌我相邻\n\nSTRATEGY\n先手攻击"))
+    .enqueueResponse(200, providerResponse('{"path":[]}'));
+  const decision = new DeepSeekDecision({ transport }, (request, memo) => observed.push([request.requestId, memo]));
+  const completion = await decision.decide(request(), new AbortController().signal);
+  assert.equal(completion.type, "completed");
+  assert.deepEqual(observed, [["request:7", "SITUATION\n敌我相邻\n\nSTRATEGY\n先手攻击"]]);
+  assert.equal(JSON.parse(JSON.parse(transport.requests[1].bodyText).input).strategyMemo, observed[0][1],
+    "Call B still receives the identical original memo");
+});
+
+test("processMessageObserver stays silent on Call A failure, abort, and empty visible output", async () => {
+  const failing = new FakeDeepSeekTransport().enqueueResponse(200, providerResponse("   "));
+  const observedFailure = [];
+  await new DeepSeekDecision({ transport: failing }, (_request, memo) => observedFailure.push(memo)).decide(request(), new AbortController().signal);
+  assert.deepEqual(observedFailure, []);
+
+  const aborted = new AbortController();
+  aborted.abort();
+  const observedAbort = [];
+  await new DeepSeekDecision({ transport: new FakeDeepSeekTransport() }, (_request, memo) => observedAbort.push(memo))
+    .decide(request(), aborted.signal);
+  assert.deepEqual(observedAbort, []);
+
+  const deferredTransport = new FakeDeepSeekTransport();
+  const late = deferredTransport.enqueueDeferred();
+  const observedBetween = [];
+  const controller = new AbortController();
+  const pending = new DeepSeekDecision({ transport: deferredTransport }, (_request, memo) => observedBetween.push(memo))
+    .decide(request(), controller.signal);
+  late.resolve(200, providerResponse("memo"));
+  queueMicrotask(() => controller.abort());
+  await pending;
+  assert.deepEqual(observedBetween, [], "aborted between stages never surfaces the memo");
+});
+
+test("a throwing processMessageObserver is isolated and cannot change the DecisionCompletion", async () => {
+  const transport = new FakeDeepSeekTransport()
+    .enqueueResponse(200, providerResponse("strategy"))
+    .enqueueResponse(200, providerResponse('{"path":[]}'));
+  let calls = 0;
+  const decision = new DeepSeekDecision({ transport }, () => {
+    calls += 1;
+    throw new Error("observer failure");
+  });
+  const completion = await decision.decide(request(), new AbortController().signal);
+  assert.equal(calls, 1);
+  assert.deepEqual(completion, {
+    type: "completed", requestId: "request:7", generation: 4, plan: { path: [] },
+  });
+  assert.throws(() => new DeepSeekDecision({ transport: new FakeDeepSeekTransport() }, "nope"), /processMessageObserver/);
+});

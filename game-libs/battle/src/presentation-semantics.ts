@@ -8,6 +8,59 @@ import type {
   SkillEffectProjection,
 } from "./contracts.js";
 
+/**
+ * Map-scoped tile geometry for a **pure map area** (HUD already excluded).
+ * Unlike calculateTileViewportLayout(w, h), which treats h as a full window
+ * height and deducts the HUD barHeight internally, this layout consumes the
+ * map container's real content box as-is so the HUD height is never deducted
+ * twice. barHeight is reported as 0: in map-scoped mode the HUD height lives
+ * in the separate bottom region and is carried by RenderData.barHeight from
+ * the window viewport, not by this layout.
+ */
+export function calculateMapGeometry(
+  width: number,
+  height: number,
+  m = 14,
+  n = 33,
+  d = TILE_SIZE_PX,
+): Readonly<TileViewportLayout> {
+  const contentWidth = Math.max(1, Math.floor(width));
+  const contentHeight = Math.max(1, Math.floor(height));
+  const tileSize = Math.max(1, Math.floor(d));
+  const rawColumns = Math.ceil(contentWidth / tileSize);
+  const rawRows = Math.ceil(contentHeight / tileSize);
+  const rows = Math.min(Math.min(33, n), Math.max(Math.max(14, m), rawRows));
+  const columns = rawRows < Math.max(14, m) || rawRows > Math.min(33, n)
+    ? Math.max(1, Math.round(rows * contentWidth / contentHeight))
+    : rawColumns;
+  const logicalWidth = columns * tileSize;
+  const logicalHeight = rows * tileSize;
+  const scaleX = contentWidth / logicalWidth;
+  const scaleY = contentHeight / logicalHeight;
+  if (![scaleX, scaleY].every((value) => Number.isFinite(value) && value > 0)) {
+    throw new RangeError("Map-scoped viewport scale is not renderable");
+  }
+  return Object.freeze({
+    windowWidth: contentWidth,
+    windowHeight: contentHeight,
+    barHeight: 0,
+    contentWidth,
+    contentHeight,
+    columns,
+    rows,
+    logicalWidth,
+    logicalHeight,
+    scaleX,
+    scaleY,
+  });
+}
+
+/** HUD bar height for the bottom region, derived from the window height. */
+export function barHeightForWindowHeight(windowHeight: number): number {
+  if (!Number.isFinite(windowHeight)) return 48;
+  return windowHeight < 480 ? 24 : windowHeight < 720 ? 32 : 48;
+}
+
 export interface ProjectedTable { readonly dimensions: number; readonly xSize: number; readonly ySize: number; readonly zSize: number; readonly values: readonly number[] }
 export interface BattleArenaRecord { readonly id: string; readonly tileset_id: number; readonly width: number; readonly height: number; readonly passable: readonly (readonly boolean[])[]; readonly data: ProjectedTable }
 export interface TilesetRecord { readonly id: number; readonly tileset_name: string; readonly autotile_names: readonly (string | null)[]; readonly priorities: ProjectedTable }
