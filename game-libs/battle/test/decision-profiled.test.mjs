@@ -166,6 +166,39 @@ test("profiled failure taxonomy maps provider metrics to frozen outcome classes"
   assert.deepEqual(envelope.error, { category: "attempt_failure", code: "DECISION_PROVIDER_UNAVAILABLE" });
 });
 
+test("Call B parse failure retains returned usage; unexpected HTTP status remains a typed failure", async () => {
+  const metrics = [];
+  const usage = { input_tokens: 42, output_tokens: 15 };
+  const malformed = new FakeDeepSeekTransport()
+    .enqueueResponse(200, providerResponse("memo"))
+    .enqueueResponse(200, providerResponse("invalid-plan-json", { usage }));
+  const decision = new DeepSeekProfiledDecision({
+    transport: malformed, profile: "call-a-low",
+    metricsSink: { record: (metric) => metrics.push(metric) },
+  });
+  const failedPlan = await decision.decide(request(), new AbortController().signal);
+  assert.equal(failedPlan.type, "failed");
+  assert.equal(failedPlan.error.code, "DECISION_OUTPUT_INVALID");
+  assert.equal(metrics.at(-1).stage, "call_b");
+  assert.equal(metrics.at(-1).outcome, "parse_error");
+  assert.deepEqual(metrics.at(-1).usage, {
+    inputTokens: 42, outputTokens: 15, reasoningTokens: "unknown",
+  });
+
+  const unexpectedMetrics = [];
+  const unexpected = new FakeDeepSeekTransport().enqueueResponse(418, JSON.stringify({ usage }));
+  const result = await new DeepSeekProfiledDecision({
+    transport: unexpected, profile: "call-a-low",
+    metricsSink: { record: (metric) => unexpectedMetrics.push(metric) },
+  }).decide(request(), new AbortController().signal);
+  assert.equal(result.type, "failed");
+  assert.deepEqual(result.error, { category: "attempt_failure", code: "DECISION_PROVIDER_UNAVAILABLE" });
+  assert.equal(unexpectedMetrics[0].outcome, "provider_error");
+  assert.deepEqual(unexpectedMetrics[0].usage, {
+    inputTokens: 42, outputTokens: 15, reasoningTokens: "unknown",
+  });
+});
+
 test("failure metrics carry real elapsed time from the monotonic clock, not a constant", async () => {
   const originalNow = performance.now.bind(performance);
   let fakeNow = 1_000;
