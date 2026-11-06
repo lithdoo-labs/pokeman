@@ -115,29 +115,37 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
   const motionBeforeResize = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll("lr-battle-actor")].map((element) => [element._data.actorId, { id: element._motion.id, started: element._motion.started }])));
   assert.deepEqual(Object.values(motionBeforeResize).map((item) => item.id).sort((a,b)=>a-b), [9,17]);
   await new Promise((resolve) => setTimeout(resolve, 40));
+  // This standalone direct-drive harness has no layout component, so the test
+  // itself sizes the host exactly like the layout's map container would; the
+  // component never self-sizes (that is the composed-tree test's job).
   await page.setViewportSize({ width: 800, height: 600 });
+  await page.evaluate(() => {
+    const view = document.querySelector("lr-battle-view");
+    view.style.width = "800px";
+    view.style.height = "600px";
+  });
   await commit(domain(3, { movingBoth: true, width: 800, height: 600 }));
   await waitFor(page, () => document.querySelector("lr-battle-view").getBoundingClientRect().width > 0, "map region rendered");
   const region = await page.evaluate(() => {
     const view = document.querySelector("lr-battle-view");
     const rect = view.getBoundingClientRect();
+    const stage = view.shadowRoot.querySelector(".stage").getBoundingClientRect();
     return {
-      inlineWidth: view.style.width,
-      inlineHeight: view.style.height,
       width: rect.width,
       height: rect.height,
-      top: rect.top,
-      left: rect.left,
+      stageWidth: stage.width,
+      stageHeight: stage.height,
       motions: Object.fromEntries([...document.querySelectorAll("lr-battle-actor")].map((element) => [element._data.actorId, { id: element._motion.id, started: element._motion.started }])),
     };
   });
-  // 800×600 window: pad 8, gap 8, bar 32 → upperContent 776, panel min(776*0.32,600)=248.32,
-  // map ≈527.68×552 at (8,8). Render data no longer reverse-controls the component layout.
-  assert.equal(region.inlineWidth, "");
-  assert.equal(region.inlineHeight, "");
-  assert.ok(Math.abs(region.width - 527.68) < 0.5, `map region width ${region.width}`);
-  assert.ok(Math.abs(region.height - 552) < 0.5, `map region height ${region.height}`);
-  assert.deepEqual({ top: region.top, left: region.left }, { top: 8, left: 8 });
+  // The standalone host is sized by this harness (800×600, like the layout's
+  // map container would size it); the scaled stage fills that box and render
+  // data never writes the host's inline layout.
+  assert.ok(Math.abs(region.width - 800) < 1, `standalone host width ${region.width}`);
+  assert.ok(Math.abs(region.height - 600) < 1, `standalone host height ${region.height}`);
+  // Window-mode render data (bar 32) scales the stage to the content box only.
+  assert.ok(Math.abs(region.stageWidth - 800) < 1.5, `stage fills content width (${region.stageWidth})`);
+  assert.ok(Math.abs(region.stageHeight - 568) < 1.5, `stage fills content height (${region.stageHeight})`);
   assert.deepEqual(region.motions, motionBeforeResize);
 
   await commit(domain(4, { movingBoth: true, paused: true, width: 800, height: 600 }));
@@ -216,6 +224,11 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
       },
     });
     activeStore = handlerStore; activeGeneration = 2;
+    // Standalone handler mode (no layout shell): the view fills the page.
+    await page.evaluate(() => {
+      document.documentElement.style.height = "100%";
+      document.body.style.height = "100%";
+    });
     const mapValues = Array(30 * 20 * 3).fill(0); mapValues[0] = 384; mapValues[2 + 2 * 30 + 2 * 600] = 385;
     const table = (values, xSize, ySize = 1, zSize = 1) => ({ dimensions: zSize === 1 && ySize === 1 ? 1 : 3, xSize, ySize, zSize, values });
     const priorities = Array(500).fill(0); priorities[385] = 2;
@@ -266,12 +279,8 @@ test("RenderDomain state traverses WebProjector into battle custom elements", { 
     assert.deepEqual(await page.evaluate(() => {
       const view = document.querySelector("lr-battle-view");
       const rect = view.getBoundingClientRect();
-      return {
-        inlineWidth: view.style.width,
-        widthOk: Math.abs(rect.width - 527.68) < 0.5,
-        heightOk: Math.abs(rect.height - 552) < 0.5,
-      };
-    }), { inlineWidth: "", widthOk: true, heightOk: true });
+      return { widthOk: Math.abs(rect.width - 800) < 1, heightOk: Math.abs(rect.height - 600) < 1 };
+    }), { widthOk: true, heightOk: true });
     assert.match(await page.evaluate(() => document.querySelector("lr-battle-hud").shadowRoot.textContent), /Enemy 70 \/ 80/);
     handler.close(); await settle(); await present();
     await waitFor(page, () => !document.querySelector("lr-battle-view"), "Handler close cleanup");
@@ -364,26 +373,7 @@ test("Battle layout splits map/panel/HUD regions, reports map viewport sizes, an
   assert.ok(Math.abs(resized.map.height - 552) < 1.5, `resized map height ${resized.map.height}`);
   assert.ok(Math.abs(resized.panel.width - 248.32) < 1.5, `resized panel width ${resized.panel.width}`);
 
-  // The map world component claims exactly the same region as the layout's map box.
-  const aligned = await page.evaluate(() => {
-    const view = document.createElement("lr-battle-view");
-    document.body.append(view);
-    const layoutMap = document.querySelector("lr-battle-layout").shadowRoot.querySelector(".map").getBoundingClientRect();
-    const viewBox = view.getBoundingClientRect();
-    const hud = view.shadowRoot.querySelector(".hud");
-    return {
-      view: { x: viewBox.x, y: viewBox.y, width: viewBox.width, height: viewBox.height },
-      layoutMap: { x: layoutMap.x, y: layoutMap.y, width: layoutMap.width, height: layoutMap.height },
-      hud: hud.getBoundingClientRect(),
-      viewRemove: (view.remove(), true),
-    };
-  });
-  for (const key of ["x", "y", "width", "height"]) {
-    assert.ok(Math.abs(aligned.view[key] - aligned.layoutMap[key]) < 1.5, `lr-battle-view ${key} ${aligned.view[key]} ≈ layout map ${key} ${aligned.layoutMap[key]}`);
-  }
-  assert.ok(Math.abs((aligned.hud.y + aligned.hud.height) - 600) < 1, `HUD bar pinned to the window bottom (got ${aligned.hud.y + aligned.hud.height})`);
-
-  // --- Projector-driven: single UI-only domain bridges feed data into the panel ---
+  // --- Real composed tree: the world component lives INSIDE the layout ---
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.evaluate(() => document.querySelector("lr-battle-layout")?.remove());
   const store = new RendererRenderStore(3); store.beginCarrier();
@@ -400,6 +390,7 @@ test("Battle layout splits map/panel/HUD regions, reports map viewport sizes, an
   });
   const settle = async () => { for (let index = 0; index < 10; index += 1) await new Promise((resolve) => setImmediate(resolve)); };
   const entry = (sequence, kind, text) => ({ sequence, kind, text });
+  // Subsystem-shaped initial UI-only domain: layout shell + Activity Panel.
   const layoutDomain = manager.createDomain({
     zIndex: 0,
     roots: [{
@@ -419,12 +410,171 @@ test("Battle layout splits map/panel/HUD regions, reports map viewport sizes, an
     window.projectorFailures = [];
   });
   const present = async () => page.evaluate((view) => window.projector.reevaluate({ read: () => view }), presentView());
+
+  // Project the layout shell FIRST: the measurable map container must exist
+  // before BattlePresentation initialization (no first-frame deadlock).
+  await settle(); await present();
+  await waitFor(page, () => document.querySelector("lr-battle-layout") !== null, "layout shell projected before presentation init");
+
+  // The real BattlePresentationHandler grafted into the same UI-only domain.
+  const mapViewportListeners = new Set();
+  const mapViewportAdapter = {
+    value: null,
+    get current() { return mapViewportAdapter.value; },
+    subscribe(listener) { mapViewportListeners.add(listener); return () => mapViewportListeners.delete(listener); },
+  };
+  const reportCurrentMapBox = async () => page.evaluate(() => {
+    const box = document.querySelector("lr-battle-layout").shadowRoot.querySelector(".map").getBoundingClientRect();
+    return { width: Math.round(box.width), height: Math.round(box.height) };
+  });
+  // Simulate the component report the subsystem receives via presentation
+  // events (the bare-store harness cannot forward emitCustomEvent), then let
+  // the presentation settle into the new geometry.
+  const feedMapReport = async () => {
+    const box = await reportCurrentMapBox();
+    mapViewportAdapter.value = Object.freeze(box);
+    for (const listener of [...mapViewportListeners]) listener(box);
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    await settle(); await present();
+    return box;
+  };
+  let windowViewportCurrent = { width: 1024, height: 768 };
+  const windowViewportListeners = new Set();
+  const composedRecords = new Map([
+    ["struct.BattleArena:test", { id: "test", tileset_id: 1, width: 30, height: 20, passable: Array.from({ length: 20 }, () => Array(30).fill(true)), data: (() => { const values = Array(30 * 20 * 3).fill(0); values[0] = 384; values[2 + 2 * 30 + 2 * 600] = 385; return { dimensions: 3, xSize: 30, ySize: 20, zSize: 3, values }; })() }],
+    ["struct.Tileset:1", { id: 1, tileset_name: "test.png", autotile_names: ["water[2]", "calm", null, null, null, null, null], priorities: { dimensions: 1, xSize: 500, ySize: 1, zSize: 1, values: (() => { const priorities = Array(500).fill(0); priorities[385] = 2; return priorities; })() } }],
+    ["struct.BattleEffect:spark", { id: "spark", image: { namespace: "resource.Graphics", key: "BattleEffects/spark.png" }, anchor: "tile-center", timing: { fade_in_ticks: 1, hold_ticks: 2, fade_out_ticks: 1 } }],
+  ]);
+  const composedScope = {
+    signal: new AbortController().signal,
+    content: {
+      async record(namespace, key) { const value = composedRecords.get(`${namespace}:${key}`); if (!value) throw new Error("missing record"); return { value, contentVersion: version }; },
+      async resource() { return { bytes: new Uint8Array([1]), mime: "image/png", contentVersion: version }; },
+    },
+    viewport: {
+      get current() { return windowViewportCurrent; },
+      subscribe(listener) { windowViewportListeners.add(listener); return () => windowViewportListeners.delete(listener); },
+    },
+    createRenderDomain() { throw new Error("the injected UI domain must be reused, not replaced"); },
+  };
+  const composedFrame = { id: "composed-e2e", params: null, signal: new AbortController().signal, async call() { return { type: "cancelled" }; } };
+  const handler = new BattlePresentationBuilder(composedScope, composedFrame, { viewport: mapViewportAdapter, domain: layoutDomain }).build();
+  const composedScene = {
+    battleId: "composed-e2e", sceneEpoch: 9, tickDurationMs: 200, map: { arenaId: "test" },
+    actors: [
+      { actorId: "hero", team: "ally", character: { namespace: "resource.Graphics", key: "Characters/hero.png" } },
+      { actorId: "enemy", team: "enemy", character: { namespace: "resource.Graphics", key: "Characters/enemy.png" } },
+    ],
+    effectIds: ["spark"],
+  };
+  await feedMapReport();
+  await handler.initialize(composedScene);
+  handler.render({
+    sceneEpoch: 9, tick: 0,
+    actors: [
+      { actorId: "hero", tile: { x: 2, y: 2 }, direction: 6, hp: 100, maxHp: 100, life: "alive", movement: null },
+      { actorId: "enemy", tile: { x: 5, y: 2 }, direction: 4, hp: 80, maxHp: 80, life: "alive", movement: null },
+    ],
+    effectStarts: [],
+  });
   await settle(); await present();
   await waitFor(page, () => {
     const layout = document.querySelector("lr-battle-layout");
+    return layout !== null && layout.querySelector("lr-battle-view") !== null;
+  }, "world tree grafted into the layout's map slot");
+
+  const regions = () => page.evaluate(() => {
+    const layout = document.querySelector("lr-battle-layout");
+    const view = layout.querySelector("lr-battle-view");
     const activity = document.querySelector("lr-battle-activity");
-    return layout !== null && activity !== null && activity.parentElement === layout;
-  }, "layout domain projected with nested activity panel");
+    const map = layout.shadowRoot.querySelector(".map");
+    const panel = layout.shadowRoot.querySelector(".panel");
+    const mapSlot = map.querySelector("slot");
+    const panelSlot = panel.querySelector("slot");
+    const round = (rect) => ({ x: Math.round(rect.x * 10) / 10, y: Math.round(rect.y * 10) / 10, width: Math.round(rect.width * 10) / 10, height: Math.round(rect.height * 10) / 10 });
+    return {
+      viewIsLayoutChild: view.parentElement === layout,
+      viewInMapSlot: mapSlot.assignedElements().includes(view),
+      activityIsLayoutChild: activity.parentElement === layout,
+      activityInPanelSlot: panelSlot.assignedElements().includes(activity),
+      map: round(map.getBoundingClientRect()),
+      view: round(view.getBoundingClientRect()),
+      stage: round(view.shadowRoot.querySelector(".stage").getBoundingClientRect()),
+      panel: round(panel.getBoundingClientRect()),
+      activityBox: round(activity.getBoundingClientRect()),
+      hud: round(document.querySelector("lr-battle-hud").getBoundingClientRect()),
+      hudHost: round(view.shadowRoot.querySelector(".hud").getBoundingClientRect()),
+      hudPinned: document.querySelector("lr-battle-hud") !== null,
+      viewData: { viewportWidth: view._data.viewportWidth, viewportHeight: view._data.viewportHeight, barHeight: view._data.barHeight, contentHeight: view._data.contentHeight },
+      viewInlineSizing: `${view.style.width}|${view.style.height}`,
+    };
+  });
+  const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} ≈ ${expected}`);
+
+  for (const [width, height] of [[1024, 768], [800, 600], [1280, 720]]) {
+    await page.setViewportSize({ width, height });
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    windowViewportCurrent = { width, height };
+    for (const listener of [...windowViewportListeners]) listener(windowViewportCurrent);
+    await feedMapReport();
+    const bar = height < 480 ? 24 : height < 720 ? 32 : 48;
+    const upperContentWidth = width - 24;
+    const panelWidth = Math.min(upperContentWidth * 0.32, 600);
+    const mapWidth = upperContentWidth - panelWidth;
+    const mapHeight = height - bar - 16;
+    const state = await regions();
+    assert.equal(state.viewIsLayoutChild && state.viewInMapSlot, true, `${width}×${height}: the real map component is the layout's map-slot content`);
+    assert.equal(state.activityIsLayoutChild && state.activityInPanelSlot, true, `${width}×${height}: the Activity Panel is the layout's panel-slot content`);
+    near(state.map.x, 8, 1, `${width}×${height} map x`);
+    near(state.map.y, 8, 1, `${width}×${height} map y`);
+    near(state.map.width, mapWidth, 1.5, `${width}×${height} map width`);
+    near(state.map.height, mapHeight, 1.5, `${width}×${height} map height`);
+    near(state.panel.width, panelWidth, 1.5, `${width}×${height} panel width`);
+    near(state.panel.x, width - 8 - panelWidth, 1.5, `${width}×${height} panel x`);
+    near(state.panel.height, mapHeight, 1.5, `${width}×${height} panel shares the upper height`);
+    // The real map component fills the layout's map container exactly.
+    near(state.view.x, state.map.x, 1, `${width}×${height} view x`);
+    near(state.view.y, state.map.y, 1, `${width}×${height} view y`);
+    near(state.view.width, mapWidth, 1.5, `${width}×${height} view width`);
+    near(state.view.height, mapHeight, 1.5, `${width}×${height} view height`);
+    // The scaled stage fills the pure map box (no HUD double deduction).
+    near(state.stage.width, mapWidth, 1.5, `${width}×${height} stage width`);
+    near(state.stage.height, mapHeight, 1.5, `${width}×${height} stage height`);
+    near(state.activityBox.width, panelWidth - 2, 1.5, `${width}×${height} activity fills the panel`);
+    // HUD: separate bottom region, full window width, window-derived height.
+    // (Geometry is asserted on the fixed .hud host box; this fontless
+    // headless Chromium renders text with zero metrics, so the slotted
+    // lr-battle-hud element itself has no intrinsic height here.)
+    assert.equal(state.hudPinned, true, `${width}×${height}: HUD content node exists in the view`);
+    near(state.hudHost.width, width, 1, `${width}×${height} hud width`);
+    near(state.hudHost.height, bar, 1, `${width}×${height} hud height`);
+    near(state.hudHost.y + state.hudHost.height, height, 1, `${width}×${height} hud bottom`);
+    // Presentation geometry is the measured pure map box, bar from the window.
+    assert.equal(state.viewData.viewportWidth, Math.round(mapWidth), `${width}×${height} render data viewport width`);
+    assert.equal(state.viewData.viewportHeight, Math.round(mapHeight), `${width}×${height} render data viewport height`);
+    assert.equal(state.viewData.contentHeight, Math.round(mapHeight), `${width}×${height} pure map height is not bar-deducted`);
+    assert.equal(state.viewData.barHeight, bar, `${width}×${height} render data bar height`);
+    assert.equal(state.viewInlineSizing, "|", `${width}×${height}: render data never reverse-controls the layout`);
+  }
+
+  // A second projection tick keeps the composed tree intact and updates in place.
+  handler.render({
+    sceneEpoch: 9, tick: 1,
+    actors: [
+      { actorId: "hero", tile: { x: 2, y: 2 }, direction: 6, hp: 70, maxHp: 100, life: "alive", movement: null },
+      { actorId: "enemy", tile: { x: 5, y: 2 }, direction: 4, hp: 80, maxHp: 80, life: "alive", movement: null },
+    ],
+    effectStarts: [],
+  });
+  await settle(); await present();
+  await waitFor(page, () => document.querySelector("lr-battle-hud")?.shadowRoot.textContent.includes("Ally 70 / 100"), "composed HUD update");
+  handler.close();
+  const afterHandlerClose = await page.evaluate(() => ({
+    layoutAlive: document.querySelector("lr-battle-layout") !== null,
+    viewAlive: document.querySelector("lr-battle-view") !== null,
+  }));
+  assert.deepEqual(afterHandlerClose, { layoutAlive: true, viewAlive: true }, "handler close leaves the externally owned UI domain alive");
+  await settle(); await present();
 
   const commitActivity = async (messages) => {
     layoutDomain.update({ nodes: [{ key: "battle:activity", data: { set: { messages } } }] });
@@ -538,15 +688,19 @@ test("Battle layout splits map/panel/HUD regions, reports map viewport sizes, an
     } finally {
       layout._context = original;
     }
-    return { count: captured.length, last: captured.at(-1) };
+    const box = layout.shadowRoot.querySelector(".map").getBoundingClientRect();
+    return { count: captured.length, last: captured.at(-1), liveMap: { width: Math.round(box.width), height: Math.round(box.height) } };
   });
   assert.ok(requestReports.count >= 1, "battle.viewport.request re-reports through the layout component");
-  assert.deepEqual(requestReports.last.data, { width: 680, height: 704 });
+  assert.deepEqual(requestReports.last.data, requestReports.liveMap, "the re-report carries the current real map content box");
   assert.deepEqual(requestReports.last.options, { broadcast: "top-frame", channel: "pokeman.battle.viewport" });
 
-  // Close: the domain teardown removes layout + panel and clears message DOM.
+  // Close: the domain teardown removes the whole composed tree (layout, the
+  // grafted world view, and the panel) and clears message DOM.
   layoutDomain.close(); await settle(); await present();
-  await waitFor(page, () => document.querySelector("lr-battle-layout") === null && document.querySelector("lr-battle-activity") === null, "layout domain close cleanup");
+  await waitFor(page, () => document.querySelector("lr-battle-layout") === null
+    && document.querySelector("lr-battle-activity") === null
+    && document.querySelector("lr-battle-view") === null, "layout domain close cleanup");
   const failures = await page.evaluate(() => window.projectorFailures);
   assert.deepEqual(failures, []);
 });

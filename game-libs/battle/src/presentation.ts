@@ -1,5 +1,5 @@
 import { calculateTileViewportLayout, RESIZE_SETTLE_MS, TILE_SIZE_PX, type TileViewportLayout } from "@pokeman/tile-presentation";
-import type { Frame, RenderDomain, RenderDomainState, RenderDomainUpdate, SubsystemScope, Viewport, ViewportSize } from "@loomrealm/subsystem";
+import type { Frame, RenderDomain, RenderDomainState, RenderDomainUpdate, RenderNode, SubsystemScope, Viewport, ViewportSize } from "@loomrealm/subsystem";
 import {
   compareActorId, validateBattleEffectContent, validateBattleSceneInit, validateRenderProjection,
   type ActorRenderProjection, type BattleEffectContent, type BattleSceneInit, type PresentationPort,
@@ -25,7 +25,22 @@ export interface BattlePresentationOptions {
    * viewport (with internal bar deduction) is used unchanged.
    */
   readonly viewport?: Viewport;
+  /**
+   * Pre-created PokeMan UI-only RenderDomain (root `battle:layout`). When
+   * provided, the world tree is grafted INTO this domain as the layout's
+   * map-slot content (`battle:view`, slot "map") beside the Activity Panel
+   * (`battle:activity`, slot "panel"), so the real map component participates
+   * in the layout component's DOM tree instead of being a body-level sibling.
+   * The injected domain stays owned (and closed) by its creator.
+   */
+  readonly domain?: RenderDomain;
 }
+
+/** Stable RenderNode keys of the PokeMan UI-only layout shell. */
+export const BATTLE_LAYOUT_NODE_KEY = "battle:layout";
+export const BATTLE_ACTIVITY_NODE_KEY = "battle:activity";
+const MAP_SLOT_ATTRS = Object.freeze({ slot: "map" });
+const PANEL_SLOT_ATTRS = Object.freeze({ slot: "panel" });
 
 export class BattlePresentationError extends Error {
   constructor(readonly code: PresentationErrorCode, message: string = code, options?: ErrorOptions) { super(message, options); this.name = "BattlePresentationError"; }
@@ -66,6 +81,7 @@ class Handler implements BattlePresentationHandler {
   private scene?: BattleSceneInit; private loaded?: LoadedBattleArena; private actorRefs = new Map<string, ResolvedResourceRef>(); private effects = new Map<string, EffectAsset>();
   private layout?: TileViewportLayout; private domain?: RenderDomain; private unsubscribe?: () => void; private windowUnsubscribe?: () => void; private resizeTimer?: ReturnType<typeof setTimeout>; private pendingViewport?: ViewportSize;
   private mapViewport?: Viewport; private windowBarHeight: number | undefined;
+  private readonly injectedDomain?: RenderDomain;
   private visualEpoch = 0; private lastTick = -1; private projection?: RenderProjection; private seenEffects = new Map<string, SkillEffectProjection>(); private motionFacts = new Map<string, NonNullable<ActorRenderProjection["movement"]>>();
   private resolveFailure!: (failure: PresentationFailure) => void; private failureReported = false;
   readonly failure: Promise<PresentationFailure>;
@@ -83,6 +99,13 @@ class Handler implements BattlePresentationHandler {
       this.mapViewport = viewport;
       const windowSize = this.scope.viewport?.current ?? null;
       this.windowBarHeight = windowSize === null ? undefined : barHeightForWindowHeight(windowSize.height);
+    }
+    if (options?.domain !== undefined) {
+      const domain = options.domain;
+      if (domain === null || typeof domain !== "object" || typeof domain.replace !== "function" || typeof domain.update !== "function") {
+        throw new BattlePresentationError("PRESENTATION_INVALID_DATA", "Invalid injected UI RenderDomain");
+      }
+      this.injectedDomain = domain;
     }
     frame.signal.addEventListener("abort", this.abortListener, { once: true }); scope.signal.addEventListener("abort", this.abortListener, { once: true });
     if (frame.signal.aborted || scope.signal.aborted) this.close();
@@ -163,8 +186,18 @@ class Handler implements BattlePresentationHandler {
     const nextEpoch = this.visualEpoch + 1; if (!Number.isSafeInteger(nextEpoch)) throw this.failCommit(new Error("visualEpoch exhausted"));
     let payload: ReturnType<Handler["payloads"]>; try { payload = this.payloads(projection, nextEpoch, starts, this.state === "PAUSED"); } catch (error) { throw this.failCommit(error); }
     if (this.state === "INITIALIZED") {
-      const initial = this.renderState(payload); this.preflight(initial, payload.view, initial, "state");
-      try { this.domain = this.scope.createRenderDomain(initial); } catch (error) { throw this.failCommit(error); }
+      const initial = this.injectedDomain === undefined ? this.renderState(payload) : this.composedRenderState(payload);
+      this.preflight(initial, payload.view, initial, "state");
+      try {
+        if (this.injectedDomain !== undefined) {
+          // Graft the world tree into the layout component's map slot; the
+          // domain itself stays owned and closed by its creator.
+          this.injectedDomain.replace(initial);
+          this.domain = this.injectedDomain;
+        } else {
+          this.domain = this.scope.createRenderDomain(initial);
+        }
+      } catch (error) { throw this.failCommit(error); }
       this.state = "READY";
     } else {
       const update = this.renderUpdate(payload); this.preflight(update, payload.view, this.renderState(payload), "update");
@@ -186,7 +219,8 @@ class Handler implements BattlePresentationHandler {
     const unsubscribe = this.unsubscribe; this.unsubscribe = undefined; try { unsubscribe?.(); } catch {}
     const windowUnsubscribe = this.windowUnsubscribe; this.windowUnsubscribe = undefined; try { windowUnsubscribe?.(); } catch {}
     if (this.resizeTimer) clearTimeout(this.resizeTimer); this.resizeTimer = undefined; this.pendingViewport = undefined; this.mapViewport = undefined;
-    const domain = this.domain; this.domain = undefined; try { domain?.close(); } catch {}
+    const domain = this.domain; this.domain = undefined;
+    if (this.injectedDomain === undefined) { try { domain?.close(); } catch {} }
     this.effects.clear(); this.actorRefs.clear(); this.seenEffects.clear(); this.motionFacts.clear();
     this.projection = undefined; this.loaded = undefined; this.layout = undefined; this.scene = undefined;
   }
@@ -255,6 +289,28 @@ class Handler implements BattlePresentationHandler {
     return { view, actors: actorData, effects: effectData, hud };
   }
   private renderState(p: ReturnType<Handler["payloads"]>): RenderDomainState { return { zIndex: 0, roots: [{ key: "battle:view", tag: "lr-battle-view", attrs: {}, data: p.view as never, children: [...p.actors.map((data) => ({ key: `battle:actor:${data.actorId}`, tag: "lr-battle-actor", attrs: { slot: "world" }, data: data as never, children: [] })), { key: "battle:effects", tag: "lr-battle-effects", attrs: { slot: "world" }, data: p.effects as never, children: [] }, { key: "battle:hud", tag: "lr-battle-hud", attrs: { slot: "hud" }, data: p.hud as never, children: [] }] }] } }
+  /**
+   * Composed tree for the injected PokeMan UI-only domain: the whole world
+   * subtree (unchanged battle:view subtree shape) becomes the layout
+   * component's map-slot content, with the Activity Panel as its panel-slot
+   * sibling. One real DOM layout tree owns map | panel | HUD placement.
+   */
+  private composedRenderState(p: ReturnType<Handler["payloads"]>): RenderDomainState {
+    const view = this.renderState(p).roots[0] as RenderNode;
+    return {
+      zIndex: 0,
+      roots: [{
+        key: BATTLE_LAYOUT_NODE_KEY,
+        tag: "lr-battle-layout",
+        attrs: {},
+        data: {},
+        children: [
+          { key: view.key, tag: view.tag, attrs: MAP_SLOT_ATTRS, data: view.data, children: view.children },
+          { key: BATTLE_ACTIVITY_NODE_KEY, tag: "lr-battle-activity", attrs: PANEL_SLOT_ATTRS, data: { messages: [] } as never, children: [] },
+        ],
+      }],
+    };
+  }
   private renderUpdate(p: ReturnType<Handler["payloads"]>): RenderDomainUpdate { return { nodes: [{ key: "battle:view", data: { set: p.view as never } }, ...p.actors.map((data) => ({ key: `battle:actor:${data.actorId}`, data: { set: data as never } })), { key: "battle:effects", data: { set: p.effects as never } }, { key: "battle:hud", data: { set: p.hud as never } }] } }
   private preflight(candidate: unknown, view: unknown, prospective: RenderDomainState, kind: "state" | "update") {
     const updates = (candidate as { nodes?: readonly { key: string; data?: { set?: unknown } }[] }).nodes ?? [];

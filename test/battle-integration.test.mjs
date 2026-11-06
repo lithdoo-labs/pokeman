@@ -223,13 +223,19 @@ test("the authored Arena, actors, skills, effects and graphics resolve to initia
     async resource() { return { contentVersion: `sha256:${"a".repeat(64)}` }; },
   };
   const state = new FakeState(); await exchangeRivalCards(state);
-  const definition = await resolveLabTutorialBattle(content, await readBattleContracts(state));
+  const resolved = await resolveLabTutorialBattle(content, await readBattleContracts(state));
+  const definition = resolved.definition;
   assert.deepEqual(definition.map.ref, { arenaId: "lab-tutorial" });
   assert.deepEqual(definition.actors.map(({ actorId, hp = undefined, initialHp, tile }) => ({ actorId, hp, initialHp, tile })), [
     { actorId: "rival", hp: undefined, initialHp: 18, tile: { x: 1, y: 3 } },
     { actorId: "player", hp: undefined, initialHp: 20, tile: { x: 5, y: 3 } },
   ]);
   assert.deepEqual(definition.actors[0].skills.map(({ skillId }) => skillId), ["firebolt", "grab"]);
+  // Authored Content names flow out for the battle message display resolver.
+  assert.deepEqual(resolved.displayNames, {
+    actors: { rival: "宿敌", player: "主公" },
+    skills: { firebolt: "Firebolt", grab: "Grab" },
+  });
 });
 
 test("PokeMan-private DeepSeek transport confines credentials to Authorization and forwards cancellation", async () => {
@@ -650,11 +656,30 @@ test("Battle Frame wires feed, layout domain, viewport bridge, and cleans up on 
     ],
   };
 
+  const observedMetrics = [];
+  let observerSyncThrows = 0;
+  let observerAsyncRejects = 0;
   const subsystem = createPokeManBattleSubsystem(scope, {
     readBattleContracts: async () => ({ authority: true }),
-    resolveLabTutorialBattle: async () => definition,
+    resolveLabTutorialBattle: async () => ({
+      definition,
+      displayNames: { actors: { player: "小红", rival: "小明" }, skills: { strike: "雷电术" } },
+    }),
     readDeepSeekConfiguration: async () => ({ apiKey: "integration-secret" }),
     fetchImpl: scriptedProvider,
+    // A flaky observer (sync throws + async rejections after recording) must
+    // never affect the battle.
+    metricsObserver: (metric) => {
+      observedMetrics.push(metric);
+      if (observedMetrics.length % 3 === 0) {
+        observerSyncThrows += 1;
+        throw new Error("observer sync failure");
+      }
+      if (observedMetrics.length % 5 === 0) {
+        observerAsyncRejects += 1;
+        return Promise.reject(new Error("observer async failure"));
+      }
+    },
     settleBattleContracts: async () => ({ status: "committed", rivalIntegrity: 1, playerIntegrity: 10 }),
     subscribeLifecycle: async (_scope, listener) => { listener("foreground"); return { close() {} }; },
     createBattleClock: () => clock,
@@ -687,10 +712,23 @@ test("Battle Frame wires feed, layout domain, viewport bridge, and cleans up on 
   handler({ channel: "pokeman.battle.viewport", name: "battle.viewport.changed", data: { width: 680, height: 704 }, source: { subsystemKey: "renderer", domainId: "d1", targetKey: "battle:layout" } });
 
   await new Promise((resolve) => setImmediate(resolve));
-  // Now the battle world domain appears (map-scoped viewport accepted).
-  assert.equal(domains.length, 2, "battle world domain created after the first map report");
-  assert.equal(domains[1].state.roots[0].key, "battle:view");
-  const viewData = domains[1].state.roots[0].data;
+  // The world tree is grafted INTO the pre-created UI-only domain (no second
+  // domain): battle:view becomes the layout's map-slot content once the
+  // runtime renders its first projection.
+  assert.equal(domains.length, 1, "one UI-only domain hosts layout, world, and panel");
+  for (let index = 0; index < 50 && domains[0].replaces.length === 0; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(domains[0].replaces.length, 1, "first render replaced the injected domain's tree");
+  const composedRoot = domains[0].replaces[0].roots[0];
+  assert.deepEqual([composedRoot.key, composedRoot.tag], ["battle:layout", "lr-battle-layout"]);
+  assert.deepEqual(composedRoot.children.map((node) => [node.key, node.attrs]), [
+    ["battle:view", { slot: "map" }],
+    ["battle:activity", { slot: "panel" }],
+  ]);
+  const viewNode = composedRoot.children[0];
+  assert.deepEqual(viewNode.children.map((node) => node.key), ["battle:actor:player", "battle:actor:rival", "battle:effects", "battle:hud"]);
+  const viewData = viewNode.data;
   assert.equal(viewData.viewportWidth, 680, "the first valid map report drives map geometry");
   assert.equal(viewData.contentHeight, 704, "pure map height is not HUD-deducted");
   assert.equal(viewData.barHeight, 48, "window viewport still provides the HUD bar height");
@@ -704,7 +742,8 @@ test("Battle Frame wires feed, layout domain, viewport bridge, and cleans up on 
   assert.equal(transportCalls.length >= 4, true, "two-call decision workflow ran against the scripted provider");
   assert.ok(transportCalls.every((call) => call.url === DEEPSEEK_RESPONSES_ENDPOINT));
 
-  // The single Activity Panel received formatted messages from one feed.
+  // The single Activity Panel received formatted messages from one feed,
+  // labeled with the roster's authored display names (小红 / 小明 / 雷电术).
   const activityUpdates = domains[0].updates.filter((update) => update.nodes?.[0]?.key === "battle:activity").map((update) => update.nodes[0].data.set.messages);
   assert.ok(activityUpdates.length >= 1, "activity panel pushes happened");
   const lastMessages = activityUpdates.at(-1);
@@ -712,13 +751,30 @@ test("Battle Frame wires feed, layout domain, viewport bridge, and cleans up on 
   for (const expected of ["decision.started", "decision.analysis_completed", "decision.accepted", "skill.started", "skill.resolved", "damage.applied", "actor.defeated", "battle.ended"]) {
     assert.equal(kinds.includes(expected), true, `panel saw ${expected}`);
   }
-  const analysis = lastMessages.find((item) => item.kind === "decision.analysis_completed");
-  assert.equal(analysis.text, "【玩家】思考结束：SITUATION 相邻\nSTRATEGY 立即攻击");
+  const textBy = (kind, contains) => lastMessages.filter((item) => item.kind === kind).map((item) => item.text).find((text) => text.includes(contains));
+  assert.equal(textBy("decision.started", "小红"), "【小红】开始分析局势……");
+  assert.equal(textBy("decision.analysis_completed", "小红"), "【小红】思考结束：SITUATION 相邻\nSTRATEGY 立即攻击");
+  assert.equal(textBy("decision.accepted", "小红"), "【小红】决定对小明发动雷电术。");
+  assert.equal(textBy("skill.started", "小红"), "【小红】发动雷电术。");
+  assert.equal(textBy("skill.resolved", "小红"), "【小红】的雷电术命中。");
+  assert.equal(textBy("damage.applied", "小明"), "【小明】受到10点伤害。");
+  assert.equal(textBy("actor.defeated", "小明"), "【小明】被击倒。");
+  assert.equal(textBy("battle.ended", "系统"), "【系统】战斗结束：我方胜利。");
   const sequences = lastMessages.map((item) => item.sequence);
   assert.deepEqual(sequences, [...sequences].sort((left, right) => left - right));
   assert.ok(lastMessages.length <= 100, "panel input stays bounded");
-  const started = lastMessages.find((item) => item.kind === "decision.started");
-  assert.equal(started.text, "【玩家】开始分析局势……");
+
+  // The metrics observer sees both provider stages and runtime decision
+  // stages of the same battle; nothing sensitive is carried in metrics.
+  const metricStages = new Set(observedMetrics.map((metric) => `${metric.scope}:${metric.stage}`));
+  for (const stage of ["provider:call_a", "provider:call_b", "runtime:request_to_completion", "runtime:completion_to_acceptance", "runtime:acceptance_to_action_start"]) {
+    assert.equal(metricStages.has(stage), true, `metrics observer saw ${stage}`);
+  }
+  assert.ok(observedMetrics.filter((metric) => metric.scope === "provider").every((metric) => metric.usage === null
+    || ["inputTokens", "outputTokens", "reasoningTokens"].every((field) => typeof metric.usage[field] === "number" || metric.usage[field] === "unknown")));
+  assert.equal(JSON.stringify(observedMetrics).includes("integration-secret"), false, "metrics never carry credentials");
+  assert.ok(observedMetrics.every((metric) => !("prompt" in metric || "body" in metric || "memo" in metric)));
+  assert.ok(observerSyncThrows > 0 && observerAsyncRejects > 0, "the observer actually misbehaved during the battle");
 
   // Close cleaned everything up.
   assert.equal(domains[0].closed, 1, "UI-only layout domain closed");
@@ -750,4 +806,45 @@ test("degraded hosts without render domains or presentation events still run the
   });
   assert.equal(outcome.type, "cancelled");
   assert.equal(closed, 1);
+});
+
+test("resuming from a paused top frame re-requests a viewport report once", async () => {
+  let transitionListener;
+  let resolveRun;
+  const runResult = new Promise((resolve) => { resolveRun = resolve; });
+  const domains = [];
+  const runtime = {
+    onPause() { return () => {}; },
+    onTransition(listener) { transitionListener = listener; return () => {}; },
+    onMessage() { return () => {}; },
+    reportDecisionAnalysis() {},
+    run() { return runResult; },
+    getSnapshot() { return { battleId: "b-resume", status: "paused", actors: [] }; },
+    close() {}, pause() {}, resume() {}, cancel() { resolveRun({ type: "cancelled" }); },
+  };
+  const subsystem = createPokeManBattleSubsystem({
+    state: {}, content: {}, events: {},
+    createRenderDomain(state) { const domain = new RecordingDomain(state); domains.push(domain); return domain; },
+  }, {
+    readBattleContracts: async () => ({}), resolveLabTutorialBattle: async () => ({}),
+    readDeepSeekConfiguration: async () => ({ apiKey: "x" }), decision: {}, presentation: {}, runtime,
+    settleBattleContracts: async () => { throw new Error("cancelled must not settle"); },
+    subscribeLifecycle: async (_scope, listener) => { listener("foreground"); return { close() {} }; },
+  });
+  const pending = subsystem.frame({
+    params: { scenarioId: "lab-rival-tutorial", source: { mapId: 4, rival: { instanceId: "rival-lab", npcId: "rival-lab" } } },
+    signal: new AbortController().signal, async call() { throw new Error("unexpected"); },
+  });
+  while (transitionListener === undefined) await new Promise((resolve) => setImmediate(resolve));
+  transitionListener({ from: "initializing", to: "running" });
+  transitionListener({ from: "running", to: "paused" });
+  assert.equal(domains[0].emits.length, 0, "pausing alone sends no viewport request");
+  transitionListener({ from: "paused", to: "running" });
+  transitionListener({ from: "paused", to: "running" });
+  const requests = domains[0].emits.filter((event) => event.name === "battle.viewport.request");
+  assert.equal(requests.length, 2, "each resume emits one re-report request");
+  assert.deepEqual(requests.every((event) => event.targetKey === "battle:layout" && JSON.stringify(event.data) === "{}"), true);
+  resolveRun({ type: "cancelled" });
+  assert.equal((await pending).type, "cancelled");
+  assert.equal(domains[0].closed, 1, "UI domain closed with the frame");
 });

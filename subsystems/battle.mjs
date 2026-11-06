@@ -18,8 +18,6 @@ export const BATTLE_ACTIVITY_RENDER_KEY = "battle:activity";
 export const BATTLE_VIEWPORT_CHANGED_EVENT = "battle.viewport.changed";
 export const BATTLE_VIEWPORT_REQUEST_EVENT = "battle.viewport.request";
 export const BATTLE_MESSAGE_FEED_CAPACITY = 100;
-export const BATTLE_ACTOR_DISPLAY_NAMES = Object.freeze({ player: "玩家", rival: "对手" });
-export const BATTLE_SKILL_DISPLAY_NAMES = Object.freeze({ firebolt: "火花弹", grab: "擒抓" });
 
 /**
  * Selected Call A profile (see test/records/call-a-performance-records.md):
@@ -36,6 +34,53 @@ function selectCallAProfile() {
   return typeof requested === "string" && Object.hasOwn(DEEPSEEK_CALL_A_PROFILES, requested)
     ? requested
     : BATTLE_CALL_A_PROFILE_DEFAULT;
+}
+
+/**
+ * Best-effort decision-metrics observer: receives every provider Call A/Call B
+ * metric and every runtime decision metric (request_to_completion,
+ * completion_to_acceptance, acceptance_to_action_start). Synchronous throws
+ * and async rejections are isolated; observers must never block or affect the
+ * battle, and metrics never contain prompts, memos, request bodies, headers,
+ * or credentials. Injectable for tests and product telemetry wiring.
+ */
+function createMetricsSink(observer) {
+  if (observer !== undefined && typeof observer !== "function") {
+    throw new TypeError("Battle metrics observer must be a function");
+  }
+  return {
+    record(metric) {
+      if (observer === undefined) return;
+      try {
+        const result = observer(metric);
+        if (result !== null && typeof result === "object" && typeof result.catch === "function") {
+          result.catch(() => { /* isolated */ });
+        }
+      } catch { /* metrics never affect the battle */ }
+    },
+  };
+}
+
+/**
+ * Resolve the display-name source for the whole message stream (Runtime,
+ * Simulation facts, and AI strategyMemo narrative alike). Names come from the
+ * battle roster's authored Content metadata; actors without a name fall back
+ * to stable, readable team labels — never the raw actorId.
+ */
+function resolveBattleDisplayNames(roster, definition) {
+  const authored = roster?.actors && typeof roster.actors === "object" ? roster.actors : {};
+  const actors = {};
+  for (const actor of definition?.actors ?? []) {
+    const name = authored[actor.actorId];
+    actors[actor.actorId] = typeof name === "string" && name.length > 0
+      ? name
+      : actor.team === "ally" ? "我方角色" : "敌方角色";
+  }
+  const skills = roster?.skills && typeof roster.skills === "object" ? roster.skills : {};
+  return Object.freeze({
+    actors: Object.freeze(actors),
+    skills: Object.freeze(skills),
+  });
 }
 
 function createBattleActivityDomainState() {
@@ -212,12 +257,8 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
       // initialization so the measurable map container exists before the
       // first RenderProjection; the Activity Panel is its stable child node.
       const feed = createBattleMessageFeed({ capacity: BATTLE_MESSAGE_FEED_CAPACITY });
-      const displayNames = Object.freeze({
-        actors: BATTLE_ACTOR_DISPLAY_NAMES,
-        skills: BATTLE_SKILL_DISPLAY_NAMES,
-      });
-      const decisionMetrics = [];
-      const metricsSink = { record: (metric) => { if (decisionMetrics.length < 4096) decisionMetrics.push(metric); } };
+      let displayNames = Object.freeze({ actors: Object.freeze({}), skills: Object.freeze({}) });
+      const metricsSink = createMetricsSink(dependencies.metricsObserver);
       let uiDomain = null;
       if (typeof scope.createRenderDomain === "function") {
         uiDomain = scope.createRenderDomain(createBattleActivityDomainState());
@@ -272,7 +313,11 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
       try {
         lifecycle = await subscribeLifecycle(scope, acceptLifecycle);
         const authority = await readContracts(scope.state, { signal: frame.signal });
-        const definition = await resolveBattle(scope.content, authority, { signal: frame.signal });
+        const resolvedBattle = await resolveBattle(scope.content, authority, { signal: frame.signal });
+        // The resolver returns { definition, displayNames }; tolerate legacy
+        // bare definitions for injected test doubles.
+        const definition = resolvedBattle?.definition ?? resolvedBattle;
+        displayNames = resolveBattleDisplayNames(resolvedBattle?.displayNames, definition);
         const config = await readConfiguration(scope.state, frame.signal);
         const transport = makeTransport(config.apiKey, dependencies.fetchImpl);
         const processMessageObserver = (request, strategyMemo) => {
@@ -284,7 +329,10 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
             ? new (dependencies.DeepSeekDecision ?? DeepSeekDecision)({ transport }, processMessageObserver)
             : new DeepSeekProfiledDecision({ transport, profile: selectCallAProfile(), metricsSink }, processMessageObserver));
         const presentation = dependencies.presentation
-          ?? new PresentationBuilder(scope, frame, viewportBridge === null ? undefined : { viewport: viewportBridge.adapter }).build();
+          ?? new PresentationBuilder(scope, frame, {
+            ...(viewportBridge === null ? {} : { viewport: viewportBridge.adapter }),
+            ...(uiDomain === null ? {} : { domain: uiDomain }),
+          }).build();
         runtime = dependencies.runtime ?? new SimulationBuilder({
           clock: dependencies.clock ?? clockFactory(), signal: frame.signal, decision, presentation, metricsSink,
         }).build(definition);

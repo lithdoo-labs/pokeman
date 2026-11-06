@@ -14,7 +14,7 @@ function validateActor(value, id) {
       || typeof value.character.key !== "string" || !value.character.key.startsWith("Characters/")
       || !Array.isArray(value.skills) || value.skills.some((skill) => typeof skill !== "string" || skill.length === 0)
       || new Set(value.skills).size !== value.skills.length) throw new TypeError(`Invalid BattleActor/${id}`);
-  return { id, maxHp: integer(value.max_hp, 1, `${id}.max_hp`), character: structuredClone(value.character) };
+  return { id, name: value.name, maxHp: integer(value.max_hp, 1, `${id}.max_hp`), character: structuredClone(value.character) };
 }
 
 function rangeMatrix(value, label) {
@@ -35,6 +35,7 @@ function validateSkill(value, id) {
       || !exact(value.timing, ["windup_ticks", "recovery_ticks"])) throw new TypeError(`Invalid BattleSkill/${id}`);
   return {
     skillId: id,
+    name: value.name,
     baseDamage: integer(value.damage, 0, `${id}.damage`),
     windupTicks: integer(value.timing.windup_ticks, 0, `${id}.windup_ticks`),
     recoveryTicks: integer(value.timing.recovery_ticks, 0, `${id}.recovery_ticks`),
@@ -63,6 +64,14 @@ export async function resolveLabTutorialBattle(content, contracts, { battleId = 
     if (!CONTENT_VERSION.test(resource?.contentVersion ?? "")) throw new TypeError(`Invalid BattleEffect resource ${skill.effect}`);
     definitions.set(id, skill);
   }
+  /**
+   * The frozen ResolvedBattleDefinition skill shape must stay exact; authored
+   * `name` metadata is surfaced only through the displayNames map below.
+   */
+  const toSkillDefinition = (id) => {
+    const { skillId, baseDamage, windupTicks, recoveryTicks, range, effect } = definitions.get(id);
+    return { skillId, baseDamage, windupTicks, recoveryTicks, range, effect };
+  };
   const definition = {
     battleId, sceneEpoch, battleSeed: battleId, tickDurationMs: 200,
     moveTicks: 2, protectionTicks: 2, maxPathSteps: 6,
@@ -71,14 +80,20 @@ export async function resolveLabTutorialBattle(content, contracts, { battleId = 
       {
         actorId: "rival", team: "ally", tile: { x: 1, y: 3 }, direction: 6,
         maxHp: rival.maxHp, initialHp: contracts.playerToRival.value.contract.integrity,
-        character: rival.character, skills: contracts.playerToRival.value.contract.skills.map((id) => definitions.get(id)),
+        character: rival.character, skills: contracts.playerToRival.value.contract.skills.map(toSkillDefinition),
       },
       {
         actorId: "player", team: "enemy", tile: { x: 5, y: 3 }, direction: 4,
         maxHp: player.maxHp, initialHp: contracts.rivalToPlayer.value.contract.integrity,
-        character: player.character, skills: contracts.rivalToPlayer.value.contract.skills.map((id) => definitions.get(id)),
+        character: player.character, skills: contracts.rivalToPlayer.value.contract.skills.map(toSkillDefinition),
       },
     ],
   };
-  return validateResolvedBattleDefinition(definition);
+  // Battle-roster display names: authored Content metadata (`name` fields of
+  // struct.BattleActor / struct.BattleSkill), not invented or actorId-derived.
+  const displayNames = {
+    actors: Object.freeze({ rival: Object.freeze(rival.name), player: Object.freeze(player.name) }),
+    skills: Object.freeze(Object.fromEntries([...definitions.entries()].map(([id, skill]) => [id, skill.name]))),
+  };
+  return { definition: validateResolvedBattleDefinition(definition), displayNames: Object.freeze(displayNames) };
 }

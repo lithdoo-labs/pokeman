@@ -98,8 +98,9 @@ test("local formatter renders every template with 【actor】 labels and safe sy
   for (const [value, expected] of cases) {
     assert.equal(formatBattleMessage(value, names), expected);
   }
-  // Unknown actor / skill ids fall back to their raw identifiers.
-  assert.equal(formatBattleMessage({ ...base, type: "decision.started", actorId: "rival", reason: "plan_exhausted" }), "【rival】开始分析局势……");
+  // Unknown actor ids fall back to a stable readable label, never the raw id.
+  assert.equal(formatBattleMessage({ ...base, type: "decision.started", actorId: "rival", reason: "plan_exhausted" }), "【未知角色】开始分析局势……");
+  assert.equal(formatBattleMessage({ ...base, type: "decision.started", actorId: "rival", reason: "plan_exhausted" }, { unknownActorLabel: "不明战士" }), "【不明战士】开始分析局势……");
   assert.equal(formatBattleMessage({ ...base, type: "skill.started", actorId: "a", skillId: "grab", targetActorId: "b" }, { actors: { a: "小明" } }), "【小明】发动grab。");
 });
 
@@ -109,7 +110,7 @@ test("formatter sanitizes control characters in AI narrative text and caps patho
   const formatted = formatBattleMessage({ ...base, type: "decision.analysis_completed", actorId: "a", text: dirty });
   assert.match(formatted, /思考 结束 ：靠近 再打/);
   const huge = formatBattleMessage({ ...base, type: "decision.analysis_completed", actorId: "a", text: "x".repeat(MAX_FORMATTED_MESSAGE_CHARS + 500) });
-  assert.equal(huge.length <= `【a】思考结束：`.length + MAX_FORMATTED_MESSAGE_CHARS + 1, true);
+  assert.equal(huge.length <= `【未知角色】思考结束：`.length + MAX_FORMATTED_MESSAGE_CHARS + 1, true);
 });
 
 test("formatActivityEntries projects the bounded feed snapshot into ordered plain entries", () => {

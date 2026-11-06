@@ -375,3 +375,32 @@ test("map-scoped close releases both viewport subscriptions", async () => {
   assert.equal(adapterListeners.size, 0);
   assert.equal(h.listeners.size, 0);
 });
+
+test("an injected UI domain receives the world tree grafted into the layout's map slot", async () => {
+  const h = harness({ width: 1024, height: 768 });
+  const adapter = mapAdapter({ width: 680, height: 704 });
+  const injectedDomain = new Domain(null);
+  const handler = new BattlePresentationBuilder(h.scope, h.frame, { viewport: adapter, domain: injectedDomain }).build();
+  await handler.initialize(scene());
+  assert.equal(h.domains.length, 0, "no own RenderDomain is created for the injected one");
+  handler.render(projection());
+  assert.equal(injectedDomain.replaces.length, 1, "first render replaces the injected domain's tree");
+  const root = injectedDomain.replaces[0].roots[0];
+  assert.deepEqual([root.key, root.tag], ["battle:layout", "lr-battle-layout"]);
+  const [view, activity] = root.children;
+  assert.deepEqual([view.key, view.tag, view.attrs], ["battle:view", "lr-battle-view", { slot: "map" }]);
+  assert.deepEqual(view.children.map((node) => node.key), ["battle:actor:enemy", "battle:actor:hero", "battle:effects", "battle:hud"]);
+  assert.deepEqual([activity.key, activity.tag, activity.attrs], ["battle:activity", "lr-battle-activity", { slot: "panel" }]);
+  assert.deepEqual(activity.data, { messages: [] });
+  assert.equal(view.data.viewportWidth, 680);
+  assert.equal(view.data.contentHeight, 704);
+  // Later renders update nodes without restructuring the composed tree.
+  handler.render(projection(1, { actors: [actor("hero", 2, { hp: 70 }), actor("enemy", 5)] }));
+  assert.equal(injectedDomain.replaces.length, 1);
+  const update = injectedDomain.updates.at(-1);
+  assert.deepEqual(update.nodes.map((node) => node.key), ["battle:view", "battle:actor:enemy", "battle:actor:hero", "battle:effects", "battle:hud"]);
+  // Handler close does not close the injected (externally owned) domain.
+  handler.close();
+  assert.equal(injectedDomain.closed, 0);
+  assert.throws(() => new BattlePresentationBuilder(h.scope, h.frame, { domain: {} }).build(), { code: "PRESENTATION_INVALID_DATA" });
+});

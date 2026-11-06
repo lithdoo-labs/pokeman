@@ -74,7 +74,7 @@ function definition(overrides = {}) {
 }
 
 /** Collect battle messages while driving a scripted battle. */
-async function runMessages(handler, { ticks = 8, def } = {}) {
+async function runMessages(handler, { ticks = 8, def, analysisText } = {}) {
   const decision = new ScriptDecision(handler);
   const presentation = new RecordingPresentation();
   const clock = new FakeBattleClock();
@@ -84,6 +84,11 @@ async function runMessages(handler, { ticks = 8, def } = {}) {
   runtime.onMessage((message) => messages.push(message));
   const run = runtime.run();
   await flush();
+  if (analysisText !== undefined) {
+    // Feed one visible Call A memo through the Runtime gate while the first
+    // request is still thinking.
+    runtime.reportDecisionAnalysis(decision.requests.find((request) => request.actorId === "a"), analysisText);
+  }
   for (let index = 0; index < ticks; index += 1) {
     clock.advance(200);
     await flush();
@@ -265,4 +270,37 @@ test("a deterministic battle's message stream replays identically through the Re
   const sequences = messages.map((message) => message.sequence);
   assert.deepEqual(sequences, [...sequences].sort((left, right) => left - right));
   assert.equal(new Set(messages.map((message) => message.id)).size, messages.length);
+});
+
+test("the whole message stream formats with the roster's authored display names", async () => {
+  const { formatBattleMessage } = await import("../dist/messages.js");
+  const def = definition({
+    actors: definition().actors.map((actor) => actor.actorId === "b"
+      ? { ...actor, skills: [{ ...actor.skills[0], baseDamage: 10 }] }
+      : actor),
+  });
+  const { messages } = await runMessages(scriptedPlans({
+    a: [{ path: [point(1, 3), point(0, 3)] }],
+    b: [{ path: [], skill: { skillId: "bolt", targetActorId: "a", minCoefficient: 1 } }],
+  }), {
+    ticks: 6,
+    def,
+    analysisText: "当前距离敌人三格，应先靠近再进攻。",
+  });
+  const names = { actors: { a: "小红", b: "小明" }, skills: { bolt: "雷电术", strike: "烈焰斩" } };
+  const formatted = messages.map((message) => formatBattleMessage(message, names));
+  const textOf = (predicate) => formatted[messages.findIndex(predicate)];
+  assert.equal(textOf((message) => message.type === "decision.started" && message.actorId === "a"), "【小红】开始分析局势……");
+  assert.equal(textOf((message) => message.type === "decision.started" && message.actorId === "b"), "【小明】开始分析局势……");
+  assert.equal(textOf((message) => message.type === "decision.analysis_completed"), "【小红】思考结束：当前距离敌人三格，应先靠近再进攻。");
+  assert.equal(textOf((message) => message.type === "decision.accepted" && message.actorId === "a"), "【小红】决定沿路径前往 (0, 3)。");
+  assert.equal(textOf((message) => message.type === "movement.started"), "【小红】开始移动。");
+  assert.equal(textOf((message) => message.type === "movement.interrupted"), "【小红】移动被打断。");
+  assert.equal(textOf((message) => message.type === "skill.started"), "【小明】发动雷电术。");
+  assert.equal(textOf((message) => message.type === "skill.resolved"), "【小明】的雷电术命中。");
+  assert.equal(textOf((message) => message.type === "damage.applied"), "【小红】受到10点伤害。");
+  assert.equal(textOf((message) => message.type === "actor.defeated"), "【小红】被击倒。");
+  assert.equal(textOf((message) => message.type === "battle.ended"), "【系统】战斗结束：敌方胜利。");
+  // No raw actorId ever leaks into the rendered stream.
+  assert.equal(formatted.some((text) => text.includes("【a】") || text.includes("【b】")), false);
 });

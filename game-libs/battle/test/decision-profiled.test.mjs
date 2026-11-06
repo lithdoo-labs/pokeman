@@ -166,6 +166,104 @@ test("profiled failure taxonomy maps provider metrics to frozen outcome classes"
   assert.deepEqual(envelope.error, { category: "attempt_failure", code: "DECISION_PROVIDER_UNAVAILABLE" });
 });
 
+test("failure metrics carry real elapsed time from the monotonic clock, not a constant", async () => {
+  const originalNow = performance.now.bind(performance);
+  let fakeNow = 1_000;
+  performance.now = () => fakeNow;
+  try {
+    const metrics = [];
+    const sink = { record: (metric) => metrics.push(metric) };
+
+    // provider_error after 45ms of provider time.
+    const errorTransport = new FakeDeepSeekTransport();
+    const errorDeferred = errorTransport.enqueueDeferred();
+    const errorDecision = new DeepSeekProfiledDecision({ transport: errorTransport, profile: "call-a-low", metricsSink: sink });
+    const errorPending = errorDecision.decide(request(), new AbortController().signal);
+    fakeNow += 45;
+    errorDeferred.resolve(429, "rate limited");
+    const errorCompletion = await errorPending;
+    assert.equal(errorCompletion.type, "failed");
+    assert.equal(metrics.at(-1).outcome, "provider_error");
+    assert.equal(metrics.at(-1).durationMs, 45, "provider error duration is measured, not 0");
+
+    // abort after 30ms of provider time.
+    const abortTransport = new FakeDeepSeekTransport();
+    const abortDeferred = abortTransport.enqueueDeferred();
+    const abortController = new AbortController();
+    const abortDecision = new DeepSeekProfiledDecision({ transport: abortTransport, profile: "call-a-low", metricsSink: sink });
+    const abortPending = abortDecision.decide(request(), abortController.signal);
+    fakeNow += 30;
+    abortController.abort();
+    const abortCompletion = await abortPending;
+    assert.equal(abortCompletion.error.code, "DECISION_ABORTED");
+    assert.equal(metrics.at(-1).outcome, "abort");
+    assert.equal(metrics.at(-1).durationMs, 30, "abort duration is measured, not 0");
+
+    // timeout after the 60s budget elapses on the (faked) monotonic clock.
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    let timeoutCallback;
+    globalThis.setTimeout = (callback) => { timeoutCallback = callback; return { fake: true }; };
+    globalThis.clearTimeout = () => {};
+    try {
+      const timeoutTransport = new FakeDeepSeekTransport();
+      timeoutTransport.enqueueDeferred();
+      const timeoutDecision = new DeepSeekProfiledDecision({ transport: timeoutTransport, profile: "call-a-low", metricsSink: sink });
+      const timeoutPending = timeoutDecision.decide(request(), new AbortController().signal);
+      fakeNow += 60_000;
+      timeoutCallback();
+      const timeoutCompletion = await timeoutPending;
+      assert.equal(timeoutCompletion.error.code, "DECISION_PROVIDER_TIMEOUT");
+      assert.equal(metrics.at(-1).outcome, "timeout");
+      assert.equal(metrics.at(-1).durationMs, 60_000, "timeout duration is measured, not 0");
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
+
+    assert.equal(metrics.every((metric) => metric.durationMs >= 0), true);
+  } finally {
+    performance.now = originalNow;
+  }
+
+  // Real-clock spot check (outside the fake clock): a deferred provider
+  // error after a real wall-clock delay records a real duration.
+  const realMetrics = [];
+  const realTransport = new FakeDeepSeekTransport();
+  const realDeferred = realTransport.enqueueDeferred();
+  const realDecision = new DeepSeekProfiledDecision({ transport: realTransport, profile: "call-a-low", metricsSink: { record: (metric) => realMetrics.push(metric) } });
+  const realPending = realDecision.decide(request(), new AbortController().signal);
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  realDeferred.resolve(503, "down");
+  await realPending;
+  assert.ok(realMetrics.at(-1).durationMs >= 20, `real-clock failure duration ${realMetrics.at(-1).durationMs}`);
+});
+
+test("failure metrics keep provider-returned usage and never invent it", async () => {
+  const metrics = [];
+  const sink = { record: (metric) => metrics.push(metric) };
+  // incomplete_response whose body DID include usage.
+  const incompleteTransport = new FakeDeepSeekTransport().enqueueResponse(200, JSON.stringify({
+    object: "response",
+    status: "incomplete",
+    incomplete_details: { reason: "max_output_tokens" },
+    usage: { input_tokens: 210, output_tokens: 4096, output_tokens_details: { reasoning_tokens: 120 } },
+  }));
+  const incomplete = await new DeepSeekProfiledDecision({ transport: incompleteTransport, profile: "call-a-low-tight", metricsSink: sink })
+    .decide(request(), new AbortController().signal);
+  assert.equal(incomplete.error.code, "DECISION_PROVIDER_INCOMPLETE");
+  const incompleteMetric = metrics.at(-1);
+  assert.equal(incompleteMetric.outcome, "incomplete_response");
+  assert.deepEqual(incompleteMetric.usage, { inputTokens: 210, outputTokens: 4096, reasoningTokens: 120 });
+
+  // A non-JSON provider-error body has no usage → null, never inferred.
+  const plainTransport = new FakeDeepSeekTransport().enqueueResponse(429, "<html>rate</html>");
+  await new DeepSeekProfiledDecision({ transport: plainTransport, profile: "v0-quality", metricsSink: sink })
+    .decide(request(), new AbortController().signal);
+  assert.equal(metrics.at(-1).usage, null);
+  assert.equal(metrics.at(-1).code, "DECISION_PROVIDER_RATE_LIMITED");
+});
+
 test("throwing and rejecting metrics sinks never affect the profiled Decision", async () => {
   for (const sink of [{ record() { throw new Error("sync boom"); } }, { record() { return Promise.reject(new Error("async boom")); } }]) {
     const transport = new FakeDeepSeekTransport()

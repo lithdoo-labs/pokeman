@@ -1,6 +1,6 @@
 # Call A 性能对照试验记录
 
-- 执行时间：2026-11-05T18:54:25.096Z
+- 执行时间：2026-11-06T02:32:18.206Z
 - 数据来源：未执行真实 Provider 试验
 - 跳过原因：未设置 BATTLE_DEEPSEEK_PERF=1：真实对照试验未显式 opt-in，跳过
 - 每个 profile 样本数：0（交错轮转，固定 Observation / Prompt / battle seed）

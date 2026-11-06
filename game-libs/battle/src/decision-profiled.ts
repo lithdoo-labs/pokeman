@@ -75,7 +75,12 @@ type ProfiledWorkflowResult =
   | { readonly type: "failed"; readonly error: DecisionFailure };
 
 class WorkflowFailure extends Error {
-  constructor(readonly failure: DecisionFailure, readonly httpStatus?: number) {
+  constructor(
+    readonly failure: DecisionFailure,
+    readonly httpStatus?: number,
+    /** Usage the provider actually returned before this failure, if any. */
+    readonly usage?: ProviderUsage | null,
+  ) {
     super(failure.code);
     this.name = "WorkflowFailure";
   }
@@ -89,8 +94,8 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return value !== null && typeof value === "object" && typeof (value as PromiseLike<unknown>).then === "function";
 }
 
-function fail(category: DecisionFailure["category"], code: string, httpStatus?: number): never {
-  throw new WorkflowFailure(Object.freeze({ category, code }), httpStatus);
+function fail(category: DecisionFailure["category"], code: string, httpStatus?: number, usage?: ProviderUsage | null): never {
+  throw new WorkflowFailure(Object.freeze({ category, code }), httpStatus, usage);
 }
 
 function nowMs(): number {
@@ -199,10 +204,20 @@ function normalizeProviderResponse(response: DeepSeekTransportResponse): { text:
   if (!Number.isInteger(response.status) || response.status < 100 || response.status > 599 || typeof response.bodyText !== "string") {
     throw new Error("DeepSeekTransport returned an invalid response");
   }
-  if (response.status === 401 || response.status === 403) fail("session_fatal", "DECISION_PROVIDER_AUTH", response.status);
-  if (response.status === 402) fail("session_fatal", "DECISION_PROVIDER_QUOTA", response.status);
-  if (response.status === 429) fail("attempt_failure", "DECISION_PROVIDER_RATE_LIMITED", response.status);
-  if (response.status >= 500) fail("attempt_failure", "DECISION_PROVIDER_UNAVAILABLE", response.status);
+  // Best-effort usage extraction from whatever body the provider actually
+  // returned; failures keep null/unknown usage and never infer numbers.
+  const failureWith = (category: DecisionFailure["category"], code: string): never => {
+    let usage: ProviderUsage | null = null;
+    try {
+      const parsed: unknown = JSON.parse(response.bodyText);
+      usage = extractProviderUsage(parsed);
+    } catch { /* error bodies may be non-JSON */ }
+    fail(category, code, response.status, usage);
+  };
+  if (response.status === 401 || response.status === 403) failureWith("session_fatal", "DECISION_PROVIDER_AUTH");
+  if (response.status === 402) failureWith("session_fatal", "DECISION_PROVIDER_QUOTA");
+  if (response.status === 429) failureWith("attempt_failure", "DECISION_PROVIDER_RATE_LIMITED");
+  if (response.status >= 500) failureWith("attempt_failure", "DECISION_PROVIDER_UNAVAILABLE");
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`DeepSeek Responses contract rejected with HTTP ${response.status}`);
   }
@@ -213,7 +228,20 @@ function normalizeProviderResponse(response: DeepSeekTransportResponse): { text:
     fail("attempt_failure", "DECISION_PROVIDER_UNAVAILABLE", response.status);
   }
   const usage = extractProviderUsage(value);
-  return { text: extractOutputText(value), usage };
+  const text = extractOutputTextWithUsage(value, usage);
+  return { text, usage };
+}
+
+/** extractOutputText that carries the already-extracted usage into failures. */
+function extractOutputTextWithUsage(value: unknown, usage: ProviderUsage | null): string {
+  try {
+    return extractOutputText(value);
+  } catch (error) {
+    if (error instanceof WorkflowFailure) {
+      throw new WorkflowFailure(error.failure, error.httpStatus, usage);
+    }
+    throw error;
+  }
 }
 
 interface CallOutcome {
@@ -397,13 +425,13 @@ export class DeepSeekProfiledDecision implements DecisionPort {
     try {
       const battle = formatBattleContext(request);
       let strategyMemo: string;
+      const callAStartedAt = nowMs();
       try {
-        const startedAt = nowMs();
         const outcome = await callProfiledDeepSeek(this.#transport, buildProfiledAnalysisRequest(battle, this.#profile), signal);
-        this.#recordProviderMetric("call_a", startedAt, outcome, "success");
+        this.#recordProviderMetric("call_a", callAStartedAt, outcome, "success");
         strategyMemo = outcome.text;
       } catch (error) {
-        this.#recordProviderFailure("call_a", error);
+        this.#recordProviderFailure("call_a", error, callAStartedAt);
         throw error;
       }
       if (signal.aborted) fail("attempt_failure", "DECISION_ABORTED");
@@ -412,14 +440,14 @@ export class DeepSeekProfiledDecision implements DecisionPort {
           this.#processMessageObserver(request, strategyMemo);
         } catch { /* observer failures never affect the Decision */ }
       }
+      const callBStartedAt = nowMs();
       try {
-        const startedAt = nowMs();
         const outcome = await callProfiledDeepSeek(this.#transport, buildProfiledMaterializationRequest(battle, strategyMemo), signal);
         const plan = parsePlanSubmission(outcome.text);
-        this.#recordProviderMetric("call_b", startedAt, outcome, "success");
+        this.#recordProviderMetric("call_b", callBStartedAt, outcome, "success");
         return Object.freeze({ type: "completed", plan: copyPlan(plan) });
       } catch (error) {
-        this.#recordProviderFailure("call_b", error);
+        this.#recordProviderFailure("call_b", error, callBStartedAt);
         throw error;
       }
     } catch (error) {
@@ -445,17 +473,19 @@ export class DeepSeekProfiledDecision implements DecisionPort {
     });
   }
 
-  #recordProviderFailure(stage: "call_a" | "call_b", error: unknown): void {
+  /** Failure metrics carry the real monotonic elapsed time, never a constant. */
+  #recordProviderFailure(stage: "call_a" | "call_b", error: unknown, startedAt: number): void {
     if (!(error instanceof WorkflowFailure)) return;
     this.#emitMetric({
       scope: "provider",
       profileId: this.#profileId,
       stage,
-      durationMs: 0,
+      durationMs: Math.max(0, nowMs() - startedAt),
       outcome: outcomeFor(error.failure.code),
       ...(error.httpStatus === undefined ? {} : { httpStatus: error.httpStatus }),
       code: error.failure.code,
-      usage: null,
+      // Only usage the provider actually returned alongside the failure.
+      usage: error.usage ?? null,
     });
   }
 

@@ -68,6 +68,8 @@ export interface BattleDisplayNameSource {
   readonly actors?: Readonly<Record<string, string>>;
   readonly skills?: Readonly<Record<string, string>>;
   readonly system?: string;
+  /** Stable label for actors without a mapped display name. */
+  readonly unknownActorLabel?: string;
 }
 
 const DIRECTION_NAMES: Readonly<Record<number, string>> = Object.freeze({ 2: "面向下方", 4: "面向左方", 6: "面向右方", 8: "面向上方" });
@@ -106,7 +108,11 @@ function sanitizeText(value: string): string {
 function actorLabel(message: BattleMessage & { actorId?: ActorId }, names: BattleDisplayNameSource): string {
   const id = (message as { actorId?: string }).actorId;
   const mapped = id === undefined ? undefined : names.actors?.[id];
-  return mapped === undefined || typeof mapped !== "string" || mapped.length === 0 ? (id ?? "未知角色") : mapped;
+  if (typeof mapped === "string" && mapped.length > 0) return mapped;
+  // Stable, readable last resort: never the raw actorId and never an
+  // invented per-actor name. Composition layers should always provide the
+  // roster's authored display names (see subsystems/battle-content.mjs).
+  return names.unknownActorLabel ?? "未知角色";
 }
 
 function skillLabel(skillId: string, names: BattleDisplayNameSource): string {
