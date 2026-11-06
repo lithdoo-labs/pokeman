@@ -85,7 +85,12 @@ if [ "$mode" = "fast" ]; then
   case "$scope" in
     battle|battle-browser) package_builds=(tile-presentation battle) ;;
     map) package_builds=(tile-presentation map) ;;
-    product) package_builds=(tile-presentation map battle) ;;
+    product)
+      for package in game-common-controls schema-form rpg-dialogue; do
+        (cd "loom-realm/game-libs/$package" && npm run build)
+      done
+      package_builds=(tile-presentation map battle)
+      ;;
   esac
 else
   for package in game-common-controls schema-form rpg-dialogue; do

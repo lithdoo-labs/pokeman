@@ -56,6 +56,8 @@ GitHub Actions concurrency avoids overlapping running jobs for the same Issue, b
 
 ## Testing
 
+For each iteration, select the relevant **Fast** scope (`bash scripts/ci/run-pokeman.sh fast battle`, or `fast battle-browser` for UI changes, `fast map`, `fast product`). Before claiming final implementation acceptance run **Full** (`bash scripts/ci/run-pokeman.sh full`) and report actual results or blockers. The **Release** tier is owned by PWA Staging and never reruns Full. Details: [verification tiers](verification.md).
+
 ### Offline CI tests
 
 Open a PR with these changes. The **Issue Agent Validation** workflow exercises:
