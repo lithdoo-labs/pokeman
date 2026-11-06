@@ -293,6 +293,183 @@ export interface BattlePauseEvent {
   readonly reason: BattlePauseReason;
 }
 
+// ---------------------------------------------------------------------------
+// Battle Message Feed (Battle Message Feed design; additive, non-authoritative)
+// ---------------------------------------------------------------------------
+
+/**
+ * Trigger reasons that start a player-perceivable decision turn.
+ * Runtime only publishes decision.started for these reasons; internal reasons
+ * (prefetch_after_materialize, correction, in-turn retries) never announce.
+ */
+export type PlayerVisibleDecisionReason =
+  | "initial"
+  | "damaging_hit"
+  | "plan_exhausted"
+  | "plan_failed";
+
+export interface BattleMessageBase {
+  readonly id: string;
+  readonly sequence: number;
+  readonly tick: number | null;
+  readonly elapsedMs: number;
+}
+
+/**
+ * Append-only battle narrative message. Authoritative sources:
+ * Runtime (decision.started/failed, battle lifecycle), Simulation facts
+ * (decision.accepted, movement intent, skill, damage, defeat) plus the
+ * explicitly non-authoritative decision.analysis_completed carrying the
+ * visible Call A strategyMemo. sequence is the only ordering authority.
+ */
+export type BattleMessage =
+  | (BattleMessageBase & {
+      readonly type: "decision.started";
+      readonly actorId: ActorId;
+      readonly reason: PlayerVisibleDecisionReason;
+    })
+  | (BattleMessageBase & {
+      readonly type: "decision.analysis_completed";
+      readonly actorId: ActorId;
+      /** Visible Call A strategyMemo only; never hidden reasoning. */
+      readonly text: string;
+    })
+  | (BattleMessageBase & {
+      readonly type: "decision.accepted";
+      readonly actorId: ActorId;
+      readonly plan: {
+        readonly movement: {
+          readonly destination: GridPosition;
+          readonly stepCount: number;
+        } | null;
+        readonly turn?: Direction;
+        readonly skill: {
+          readonly skillId: string;
+          readonly targetActorId: ActorId;
+        } | null;
+      };
+    })
+  | (BattleMessageBase & {
+      readonly type: "decision.failed";
+      readonly actorId: ActorId;
+      readonly reason: "unavailable";
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.started";
+      readonly actorId: ActorId;
+      readonly movementIntentId: string;
+      readonly from: GridPosition;
+      readonly destination: GridPosition;
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.completed";
+      readonly actorId: ActorId;
+      readonly movementIntentId: string;
+      readonly destination: GridPosition;
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.interrupted";
+      readonly actorId: ActorId;
+      readonly movementIntentId: string;
+      readonly destination: GridPosition;
+      readonly reason: "damaging_hit" | "blocked" | "invalidated";
+    })
+  | (BattleMessageBase & {
+      readonly type: "movement.failed";
+      readonly actorId: ActorId;
+      readonly destination: GridPosition;
+      readonly reason: MovementFailureReason;
+    })
+  | (BattleMessageBase & {
+      readonly type: "skill.started";
+      readonly actorId: ActorId;
+      readonly skillId: string;
+      readonly targetActorId: ActorId;
+    })
+  | (BattleMessageBase & {
+      readonly type: "skill.resolved";
+      readonly actorId: ActorId;
+      readonly skillId: string;
+      readonly targetActorId: ActorId;
+      readonly result: SkillResolveResult;
+    })
+  | (BattleMessageBase & {
+      readonly type: "damage.applied";
+      readonly sourceActorId?: ActorId;
+      readonly targetActorId: ActorId;
+      readonly skillId?: string;
+      readonly amount: number;
+      readonly hpAfter: number;
+    })
+  | (BattleMessageBase & {
+      readonly type: "actor.defeated";
+      readonly actorId: ActorId;
+      readonly sourceActorId?: ActorId;
+    })
+  | (BattleMessageBase & {
+      readonly type: "battle.paused";
+      readonly reason: BattlePauseReason;
+    })
+  | (BattleMessageBase & { readonly type: "battle.resumed" })
+  | (BattleMessageBase & {
+      readonly type: "battle.ended";
+      readonly result: BattleResult;
+    });
+
+// ---------------------------------------------------------------------------
+// Decision metrics (best-effort observation only; never gameplay authority)
+// ---------------------------------------------------------------------------
+
+export type ProviderCallStage = "call_a" | "call_b";
+export type ProviderCallOutcome =
+  | "success"
+  | "provider_error"
+  | "timeout"
+  | "abort"
+  | "incomplete_response"
+  | "parse_error";
+
+/** Provider-reported usage; any field the provider omitted is "unknown". */
+export interface ProviderUsage {
+  readonly inputTokens: number | "unknown";
+  readonly outputTokens: number | "unknown";
+  readonly reasoningTokens: number | "unknown";
+}
+
+export interface ProviderCallMetric {
+  readonly scope: "provider";
+  readonly profileId: string;
+  readonly stage: ProviderCallStage;
+  /** Wall time from request start to provider response completion. */
+  readonly durationMs: number;
+  /** Response body parse/extraction time. */
+  readonly parseMs?: number;
+  readonly outcome: ProviderCallOutcome;
+  readonly httpStatus?: number;
+  /** Frozen Decision failure code when outcome !== "success". */
+  readonly code?: string;
+  /** null when the provider returned no usage object at all. */
+  readonly usage: ProviderUsage | null;
+}
+
+export interface RuntimeDecisionMetric {
+  readonly scope: "runtime";
+  readonly stage: "request_to_completion" | "completion_to_acceptance" | "acceptance_to_action_start";
+  readonly durationMs?: number;
+  readonly tickDelay?: number;
+  readonly outcome?: "completed" | "failed" | "aborted" | "accepted" | "rejected" | "stale";
+}
+
+export type DecisionMetric = ProviderCallMetric | RuntimeDecisionMetric;
+
+/**
+ * Best-effort, non-blocking metrics sink. record() may throw or reject;
+ * callers must isolate it so metrics can never affect battle outcomes.
+ */
+export interface DecisionMetricsSink {
+  record(metric: DecisionMetric): void | Promise<void>;
+}
+
 export type ActorSnapshotAction =
   | { readonly type: "idle" }
   | {

@@ -101,6 +101,18 @@ export interface AcceptedPlan {
   skillConsumed: boolean;
 }
 
+/**
+ * A whole-path movement intent, deliberately independent of the current
+ * motion segment and of activePlan lifetime: a plan path executes across
+ * multiple ticks/segments and the actor may idle between two segments while
+ * the intent is still open. Presence of the record implies the intent has
+ * started; it is cleared exactly on completed / interrupted / failed.
+ */
+export interface MovementIntentState {
+  readonly planId: string;
+  readonly destination: GridPosition;
+}
+
 export interface ActorRuntimeState {
   actorId: ActorId;
   team: Team;
@@ -112,6 +124,7 @@ export interface ActorRuntimeState {
   decision: DecisionState;
   activePlan: AcceptedPlan | null;
   pendingPlan: AcceptedPlan | null;
+  movementIntent: MovementIntentState | null;
   protectedUntilTickExclusive: number;
   actionGeneration: number;
   decisionGeneration: number;
@@ -312,6 +325,7 @@ export function createInitialState(definition: ResolvedBattleDefinition): Battle
       decision: { type: "none" },
       activePlan: null,
       pendingPlan: null,
+      movementIntent: null,
       protectedUntilTickExclusive: 0,
       actionGeneration: 0,
       decisionGeneration: 0,

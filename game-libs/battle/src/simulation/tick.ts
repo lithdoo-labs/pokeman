@@ -5,6 +5,7 @@ import {
   type BattleSnapshot,
   type DecisionCompletion,
   type DecisionRequest,
+  type Direction,
   type GridPosition,
   type MovementFailureReason,
   type ObservedEvent,
@@ -67,6 +68,76 @@ interface TickFacts {
   protections: ReplayProtectionFact[];
 }
 
+/**
+ * Simulation-authoritative message facts for one committed Tick. These carry
+ * committed gameplay facts only (no decision.started/failed, no battle
+ * lifecycle, no id/sequence/elapsedMs — the Runtime dispatcher assigns
+ * those). Pushed at the real reducer commit points, in commit order; a
+ * failed Tick publishes none of them.
+ */
+export type SimulationMessageFact =
+  | {
+      readonly type: "decision.accepted";
+      readonly actorId: string;
+      readonly plan: {
+        readonly movement: { readonly destination: GridPosition; readonly stepCount: number } | null;
+        readonly turn?: Direction;
+        readonly skill: { readonly skillId: string; readonly targetActorId: string } | null;
+      };
+    }
+  | {
+      readonly type: "movement.started";
+      readonly actorId: string;
+      readonly movementIntentId: string;
+      readonly from: GridPosition;
+      readonly destination: GridPosition;
+    }
+  | {
+      readonly type: "movement.completed";
+      readonly actorId: string;
+      readonly movementIntentId: string;
+      readonly destination: GridPosition;
+    }
+  | {
+      readonly type: "movement.interrupted";
+      readonly actorId: string;
+      readonly movementIntentId: string;
+      readonly destination: GridPosition;
+      readonly reason: "damaging_hit" | "blocked" | "invalidated";
+    }
+  | {
+      readonly type: "movement.failed";
+      readonly actorId: string;
+      readonly destination: GridPosition;
+      readonly reason: MovementFailureReason;
+    }
+  | {
+      readonly type: "skill.started";
+      readonly actorId: string;
+      readonly skillId: string;
+      readonly targetActorId: string;
+    }
+  | {
+      readonly type: "skill.resolved";
+      readonly actorId: string;
+      readonly skillId: string;
+      readonly targetActorId: string;
+      readonly result: SkillResolveResult;
+    }
+  | {
+      readonly type: "damage.applied";
+      readonly sourceActorId: string;
+      readonly targetActorId: string;
+      readonly skillId: string;
+      readonly amount: number;
+      readonly hpAfter: number;
+    }
+  | {
+      readonly type: "actor.defeated";
+      readonly actorId: string;
+      readonly sourceActorId?: string;
+    };
+
 type DecisionHealthSignal = "success" | "failure";
 
 export interface TickOutput {
@@ -75,6 +146,7 @@ export interface TickOutput {
   readonly decisionRecords: readonly ReplayDecisionRecord[];
   readonly decisionHealthSignals: readonly DecisionHealthSignal[];
   readonly replayTick: ReplayTickRecord;
+  readonly messageFacts: readonly SimulationMessageFact[];
   readonly projection: RenderProjection;
   readonly terminalCandidate: BattleResult | null;
   readonly abortActorIds: readonly string[];
@@ -133,16 +205,43 @@ function eventOrder(left: BattleEvent, right: BattleEvent): number {
   return rank(left) - rank(right) || compareActorId(left.actorId, right.actorId);
 }
 
+function pointOf(value: GridPosition): GridPosition {
+  return Object.freeze({ x: value.x, y: value.y });
+}
+
+/** Clear an open movement intent, publishing movement.interrupted exactly once. */
+function interruptMovementIntent(
+  actor: ActorRuntimeState,
+  reason: "damaging_hit" | "blocked" | "invalidated",
+  messages: SimulationMessageFact[],
+): void {
+  const intent = actor.movementIntent;
+  if (intent === null) return;
+  actor.movementIntent = null;
+  messages.push({
+    type: "movement.interrupted",
+    actorId: actor.actorId,
+    movementIntentId: intent.planId,
+    destination: pointOf(intent.destination),
+    reason,
+  });
+}
+
 function invalidateForDamage(
   state: BattleState,
   actor: ActorRuntimeState,
   facts: TickFacts,
+  messages: SimulationMessageFact[],
   abortActorIds: Set<string>,
 ): void {
   if (actor.action.type === "moving") {
     state.reservations.delete(tileKey(actor.action.to));
     facts.movements.push({ type: "move_interrupted", actorId: actor.actorId, reason: "damaging_hit" });
   }
+  // The movement intent is independent of the current motion segment: even if
+  // the actor is idling between two path segments, an open intent is
+  // interrupted by the damaging hit.
+  interruptMovementIntent(actor, "damaging_hit", messages);
   actor.actionGeneration = increment(actor.actionGeneration);
   actor.activePlan = null;
   actor.pendingPlan = null;
@@ -155,6 +254,7 @@ function resolveBatch(
   state: BattleState,
   intents: readonly SkillResolveIntent[],
   facts: TickFacts,
+  messages: SimulationMessageFact[],
   effectStarts: SkillEffectProjection[],
   abortActorIds: Set<string>,
   scheduledEvents: BattleEvent[],
@@ -185,6 +285,13 @@ function resolveBatch(
       skillId: intent.skillId,
       result,
       coefficientUnits,
+    });
+    messages.push({
+      type: "skill.resolved",
+      actorId: intent.actor.actorId,
+      skillId: intent.skillId,
+      targetActorId: intent.targetActorId,
+      result,
     });
     effectStarts.push(Object.freeze({
       effectId,
@@ -218,11 +325,26 @@ function resolveBatch(
         hpBefore: before,
         hpAfter: hp,
       });
+      messages.push({
+        type: "damage.applied",
+        sourceActorId: hit.intent.actor.actorId,
+        targetActorId: targetId,
+        skillId: hit.intent.skillId,
+        amount: hit.damage,
+        hpAfter: hp,
+      });
     }
+    const lethalSource = hits[hits.length - 1]!.intent.actor.actorId;
     target.hp = hp;
-    invalidateForDamage(state, target, facts, abortActorIds);
-    if (hp <= 0) target.action = { type: "dead" };
-    else {
+    invalidateForDamage(state, target, facts, messages, abortActorIds);
+    if (hp <= 0) {
+      target.action = { type: "dead" };
+      messages.push({
+        type: "actor.defeated",
+        actorId: target.actorId,
+        sourceActorId: lethalSource,
+      });
+    } else {
       target.action = { type: "idle" };
       target.protectedUntilTickExclusive = checkedAdd(checkedAdd(state.currentTick, definition.protectionTicks), 1);
       facts.protections.push({
@@ -330,6 +452,7 @@ export function processOneTick(
 ): TickOutput {
   if (state.currentTick < 1) throw new Error("Tick must be advanced before processing");
   const facts: TickFacts = { movements: [], skills: [], damage: [], protections: [] };
+  const messages: SimulationMessageFact[] = [];
   const scheduledEvents: BattleEvent[] = [];
   const commands: RequestDecisionCommand[] = [];
   const decisionRecords: ReplayDecisionRecord[] = [];
@@ -348,6 +471,16 @@ export function processOneTick(
       state.reservations.delete(tileKey(actor.action.to));
       actor.tile = { ...actor.action.to };
       actor.action = { type: "idle" };
+      const intent = actor.movementIntent;
+      if (intent !== null && intent.destination.x === actor.tile.x && intent.destination.y === actor.tile.y) {
+        actor.movementIntent = null;
+        messages.push({
+          type: "movement.completed",
+          actorId: actor.actorId,
+          movementIntentId: intent.planId,
+          destination: pointOf(intent.destination),
+        });
+      }
     } else if (event.type === "recovery_complete" && actor.action.type === "recovery") {
       actor.action = { type: "idle" };
     } else if (event.type === "skill_resolve" && actor.action.type === "windup") {
@@ -357,7 +490,7 @@ export function processOneTick(
 
   let damaged: Set<string>;
   try {
-    damaged = resolveBatch(definition, state, ordinarySkillIntents, facts, effectStarts, abortActorIds, scheduledEvents);
+    damaged = resolveBatch(definition, state, ordinarySkillIntents, facts, messages, effectStarts, abortActorIds, scheduledEvents);
   } catch (error) {
     if (error instanceof SimulationFailure) return simulationFailureOutput(error.code);
     throw error;
@@ -417,6 +550,17 @@ export function processOneTick(
       if (actor.action.type === "idle" && actor.activePlan === null) actor.activePlan = accepted;
       else if (actor.pendingPlan === null) actor.pendingPlan = accepted;
       else throw new Error("Accepted plan pipeline overflow");
+      messages.push({
+        type: "decision.accepted",
+        actorId: actor.actorId,
+        plan: {
+          movement: accepted.path.length > 0
+            ? { destination: pointOf(accepted.path[accepted.path.length - 1]!), stepCount: accepted.path.length }
+            : null,
+          ...(accepted.turn === undefined ? {} : { turn: accepted.turn }),
+          skill: accepted.skill === undefined ? null : { skillId: accepted.skill.skillId, targetActorId: accepted.skill.targetActorId },
+        },
+      });
       decisionRecords.push({
         actorId: actor.actorId, generation: decision.generation, attempt: decision.attempt,
         requestId: decision.requestId, requestTick: decision.requestTick, planningOrigin: { ...decision.planningOrigin }, consumedTick: state.currentTick,
@@ -447,6 +591,9 @@ export function processOneTick(
             actor.nextDecisionTick = checkedAdd(state.currentTick, 1);
           }
         } else if (!plan.skillConsumed && !isTargetEligible(state, actor, plan.skill!.targetActorId)) {
+          // An open movement intent whose plan is abandoned mid-path (e.g. the
+          // skill target died while walking) is interrupted, not silently lost.
+          interruptMovementIntent(actor, "invalidated", messages);
           actor.activePlan = null;
           actor.nextDecisionTick = checkedAdd(state.currentTick, 1);
         } else if (!plan.skillConsumed) {
@@ -464,6 +611,12 @@ export function processOneTick(
             plan.pathCursor = plan.path.length;
             actor.activePlan = null;
             startedActionActors.add(actor.actorId);
+            messages.push({
+              type: "skill.started",
+              actorId: actor.actorId,
+              skillId: skill.skillId,
+              targetActorId: target.actorId,
+            });
             const command = ensureDecision(definition, state, actor, replayView(priorReplayTicks, state.currentTick, facts), "prefetch_after_materialize", state.currentTick);
             if (command !== null) commands.push(command);
             if (skill.windupTicks === 0) instantSkills.push({ actor, generation: actor.actionGeneration, skillId: skill.skillId, targetActorId: target.actorId });
@@ -488,7 +641,7 @@ export function processOneTick(
 
     let instantDamaged: Set<string>;
     try {
-      instantDamaged = resolveBatch(definition, state, instantSkills, facts, effectStarts, abortActorIds, scheduledEvents);
+      instantDamaged = resolveBatch(definition, state, instantSkills, facts, messages, effectStarts, abortActorIds, scheduledEvents);
     } catch (error) {
       if (error instanceof SimulationFailure) return simulationFailureOutput(error.code);
       throw error;
@@ -500,7 +653,7 @@ export function processOneTick(
         const command = ensureDecision(definition, state, actor, replayView(priorReplayTicks, state.currentTick, facts), "damaging_hit", state.currentTick);
         if (command !== null) commands.push(command);
       }
-      applyMovement(definition, state, movementIntents, facts, scheduledEvents, commands, priorReplayTicks);
+      applyMovement(definition, state, movementIntents, facts, messages, scheduledEvents, commands, priorReplayTicks);
       for (const actor of sortedActors(state)) {
         if (actor.action.type === "idle" && actor.activePlan === null && actor.pendingPlan === null && actor.decision.type === "none" && state.currentTick >= actor.nextDecisionTick) {
           const command = ensureDecision(definition, state, actor, replayView(priorReplayTicks, state.currentTick, facts), "plan_exhausted", actor.nextDecisionTick);
@@ -524,6 +677,7 @@ export function processOneTick(
     decisionRecords: Object.freeze(decisionRecords),
     decisionHealthSignals: Object.freeze(decisionHealthSignals),
     replayTick: finalReplayTick,
+    messageFacts: Object.freeze(messages),
     projection: buildProjection(state, effectStarts),
     terminalCandidate,
     abortActorIds: Object.freeze([...abortActorIds].sort(compareActorId)),
@@ -535,12 +689,14 @@ export function processOneTick(
       if (actor?.decision.type === "thinking" && actor.decision.requestId === command.request.requestId) actor.decision = { type: "none" };
     }
     commands.length = 0;
+    messages.length = 0;
     return Object.freeze({
       scheduledEvents: Object.freeze(scheduledEvents),
       decisionCommands: Object.freeze([]),
       decisionRecords: Object.freeze(decisionRecords),
       decisionHealthSignals: Object.freeze(decisionHealthSignals),
       replayTick: replayTick(state.currentTick, facts),
+      messageFacts: Object.freeze([]),
       projection: buildProjection(state, effectStarts),
       terminalCandidate: Object.freeze({ type: "failure", source: "simulation", code }),
       abortActorIds: Object.freeze([...abortActorIds].sort(compareActorId)),
@@ -576,6 +732,7 @@ function applyMovement(
   state: BattleState,
   intents: readonly MoveIntent[],
   facts: TickFacts,
+  messages: SimulationMessageFact[],
   scheduledEvents: BattleEvent[],
   commands: RequestDecisionCommand[],
   priorReplayTicks: readonly ReplayTickRecord[],
@@ -618,6 +775,26 @@ function applyMovement(
     const reason = failures.get(intent.actor.actorId);
     if (reason !== undefined) {
       facts.movements.push({ type: "move_failed", actorId: intent.actor.actorId, tile: { ...intent.destination }, reason });
+      const openIntent = intent.actor.movementIntent;
+      if (openIntent !== null && openIntent.planId === intent.plan.planId) {
+        // A started multi-segment intent that cannot continue is interrupted;
+        // only a first-segment failure that never started is movement.failed.
+        intent.actor.movementIntent = null;
+        messages.push({
+          type: "movement.interrupted",
+          actorId: intent.actor.actorId,
+          movementIntentId: openIntent.planId,
+          destination: pointOf(openIntent.destination),
+          reason: "blocked",
+        });
+      } else {
+        messages.push({
+          type: "movement.failed",
+          actorId: intent.actor.actorId,
+          destination: pointOf(intent.plan.path[intent.plan.path.length - 1] ?? intent.destination),
+          reason,
+        });
+      }
       intent.actor.activePlan = null;
       intent.actor.nextDecisionTick = checkedAdd(state.currentTick, 1);
       continue;
@@ -639,6 +816,19 @@ function applyMovement(
       actorId: actor.actorId, actionGeneration: actor.actionGeneration,
     });
     facts.movements.push({ type: "move_started", actorId: actor.actorId, from: { ...actor.tile }, to: { ...intent.destination }, motionId });
+    if (actor.movementIntent === null || actor.movementIntent.planId !== intent.plan.planId) {
+      // The first committed segment opens one movement intent for the whole
+      // plan path; later segments reuse it without new player-visible events.
+      const finalDestination = intent.plan.path[intent.plan.path.length - 1]!;
+      actor.movementIntent = { planId: intent.plan.planId, destination: pointOf(finalDestination) };
+      messages.push({
+        type: "movement.started",
+        actorId: actor.actorId,
+        movementIntentId: intent.plan.planId,
+        from: pointOf(actor.action.from),
+        destination: pointOf(finalDestination),
+      });
+    }
     if (!hasFutureIntent(intent.plan)) {
       actor.activePlan = null;
       const command = ensureDecision(definition, state, actor, replayView(priorReplayTicks, state.currentTick, facts), "prefetch_after_materialize", state.currentTick);

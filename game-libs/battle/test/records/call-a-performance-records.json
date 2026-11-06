@@ -1,0 +1,1459 @@
+{
+  "executedAt": "2026-11-05T18:32:44.166Z",
+  "samplesPerProfile": 5,
+  "profiles": [
+    "v0-quality",
+    "call-a-low",
+    "call-a-none",
+    "call-a-low-tight",
+    "call-a-lean"
+  ],
+  "summary": {
+    "profiles": {
+      "v0-quality": {
+        "samples": 5,
+        "callASuccessful": 5,
+        "callAOutcomeCounts": {
+          "success": [
+            {
+              "scope": "provider",
+              "profileId": "v0-quality",
+              "stage": "call_a",
+              "durationMs": 23066.348294,
+              "parseMs": 0.34867400000075577,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 3592,
+                "reasoningTokens": 3315
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "v0-quality",
+              "stage": "call_a",
+              "durationMs": 14513.514507,
+              "parseMs": 0.07396000000881031,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 481,
+                "outputTokens": 2322,
+                "reasoningTokens": 2122
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "v0-quality",
+              "stage": "call_a",
+              "durationMs": 23066.920595999996,
+              "parseMs": 0.067590000006021,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 4013,
+                "reasoningTokens": 3768
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "v0-quality",
+              "stage": "call_a",
+              "durationMs": 18538.742375,
+              "parseMs": 0.06867599999532104,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 481,
+                "outputTokens": 2906,
+                "reasoningTokens": 2766
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "v0-quality",
+              "stage": "call_a",
+              "durationMs": 16373.034109,
+              "parseMs": 0.05990100000053644,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 2678,
+                "reasoningTokens": 2415
+              }
+            }
+          ]
+        },
+        "callBLatencies": [
+          458.1236009999993,
+          470.8343680000107,
+          683.950920000003,
+          719.1646299999993,
+          812.2617480000044
+        ],
+        "callA": {
+          "p50": 18538.742375,
+          "p90": 23066.920595999996,
+          "p95": 23066.920595999996,
+          "min": 14513.514507,
+          "max": 23066.920595999996,
+          "medianInputTokens": 482,
+          "medianOutputTokens": 2906,
+          "medianReasoningTokens": 2766
+        },
+        "planOutcomes": {
+          "accepted": [
+            {
+              "profile": "v0-quality",
+              "request": "request:trial:approach",
+              "round": 0,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            },
+            {
+              "profile": "v0-quality",
+              "request": "request:trial:approach",
+              "round": 4,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            }
+          ],
+          "rejected:path_not_adjacent": [
+            {
+              "profile": "v0-quality",
+              "request": "request:trial:finisher",
+              "round": 1,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            },
+            {
+              "profile": "v0-quality",
+              "request": "request:trial:finisher",
+              "round": 3,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            }
+          ],
+          "rejected:turn_with_path": [
+            {
+              "profile": "v0-quality",
+              "request": "request:trial:approach",
+              "round": 2,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            }
+          ]
+        }
+      },
+      "call-a-low": {
+        "samples": 5,
+        "callASuccessful": 5,
+        "callAOutcomeCounts": {
+          "success": [
+            {
+              "scope": "provider",
+              "profileId": "call-a-low",
+              "stage": "call_a",
+              "durationMs": 10497.481198999998,
+              "parseMs": 0.10794100000202889,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 1610,
+                "reasoningTokens": 1351
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low",
+              "stage": "call_a",
+              "durationMs": 5407.9669469999935,
+              "parseMs": 0.05763999999908265,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 481,
+                "outputTokens": 801,
+                "reasoningTokens": 675
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low",
+              "stage": "call_a",
+              "durationMs": 11741.943922000006,
+              "parseMs": 0.09196099999826401,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 1852,
+                "reasoningTokens": 1601
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low",
+              "stage": "call_a",
+              "durationMs": 8550.948723999987,
+              "parseMs": 0.061313999991398305,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 481,
+                "outputTokens": 1215,
+                "reasoningTokens": 989
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low",
+              "stage": "call_a",
+              "durationMs": 13537.566072000016,
+              "parseMs": 0.06711999999242835,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 2183,
+                "reasoningTokens": 1974
+              }
+            }
+          ]
+        },
+        "callBLatencies": [
+          475.7975180000067,
+          593.6714860000066,
+          631.3982520000063,
+          691.4428559999797,
+          750.6166229999944
+        ],
+        "callA": {
+          "p50": 10497.481198999998,
+          "p90": 13537.566072000016,
+          "p95": 13537.566072000016,
+          "min": 5407.9669469999935,
+          "max": 13537.566072000016,
+          "medianInputTokens": 482,
+          "medianOutputTokens": 1610,
+          "medianReasoningTokens": 1351
+        },
+        "planOutcomes": {
+          "rejected:turn_with_path": [
+            {
+              "profile": "call-a-low",
+              "request": "request:trial:approach",
+              "round": 0,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            }
+          ],
+          "rejected:path_not_adjacent": [
+            {
+              "profile": "call-a-low",
+              "request": "request:trial:finisher",
+              "round": 1,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-low",
+              "request": "request:trial:finisher",
+              "round": 3,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            }
+          ],
+          "accepted": [
+            {
+              "profile": "call-a-low",
+              "request": "request:trial:approach",
+              "round": 2,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-low",
+              "request": "request:trial:approach",
+              "round": 4,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            }
+          ]
+        }
+      },
+      "call-a-none": {
+        "samples": 5,
+        "callASuccessful": 5,
+        "callAOutcomeCounts": {
+          "success": [
+            {
+              "scope": "provider",
+              "profileId": "call-a-none",
+              "stage": "call_a",
+              "durationMs": 3236.874548,
+              "parseMs": 0.16601899999659508,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 457,
+                "outputTokens": 403,
+                "reasoningTokens": 0
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-none",
+              "stage": "call_a",
+              "durationMs": 3324.3643319999974,
+              "parseMs": 0.05394700000761077,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 456,
+                "outputTokens": 356,
+                "reasoningTokens": 0
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-none",
+              "stage": "call_a",
+              "durationMs": 3079.9850769999903,
+              "parseMs": 0.05270199998631142,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 457,
+                "outputTokens": 381,
+                "reasoningTokens": 0
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-none",
+              "stage": "call_a",
+              "durationMs": 2848.6397930000094,
+              "parseMs": 0.07775200001196936,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 456,
+                "outputTokens": 391,
+                "reasoningTokens": 0
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-none",
+              "stage": "call_a",
+              "durationMs": 2953.106432999979,
+              "parseMs": 0.05258200003299862,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 457,
+                "outputTokens": 334,
+                "reasoningTokens": 0
+              }
+            }
+          ]
+        },
+        "callBLatencies": [
+          783.0595939999912,
+          808.4624000000185,
+          859.9173320000045,
+          922.8411749999796,
+          966.5617439999914
+        ],
+        "callA": {
+          "p50": 3079.9850769999903,
+          "p90": 3324.3643319999974,
+          "p95": 3324.3643319999974,
+          "min": 2848.6397930000094,
+          "max": 3324.3643319999974,
+          "medianInputTokens": 457,
+          "medianOutputTokens": 381,
+          "medianReasoningTokens": 0
+        },
+        "planOutcomes": {
+          "rejected:turn_with_path": [
+            {
+              "profile": "call-a-none",
+              "request": "request:trial:approach",
+              "round": 0,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-none",
+              "request": "request:trial:approach",
+              "round": 2,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-none",
+              "request": "request:trial:approach",
+              "round": 4,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            }
+          ],
+          "accepted": [
+            {
+              "profile": "call-a-none",
+              "request": "request:trial:finisher",
+              "round": 1,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            }
+          ],
+          "rejected:path_not_adjacent": [
+            {
+              "profile": "call-a-none",
+              "request": "request:trial:finisher",
+              "round": 3,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            }
+          ]
+        }
+      },
+      "call-a-low-tight": {
+        "samples": 5,
+        "callASuccessful": 5,
+        "callAOutcomeCounts": {
+          "success": [
+            {
+              "scope": "provider",
+              "profileId": "call-a-low-tight",
+              "stage": "call_a",
+              "durationMs": 10148.681606999999,
+              "parseMs": 0.12625500000285683,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 1618,
+                "reasoningTokens": 1386
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low-tight",
+              "stage": "call_a",
+              "durationMs": 7170.321232999995,
+              "parseMs": 0.059609999996609986,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 481,
+                "outputTokens": 1167,
+                "reasoningTokens": 889
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low-tight",
+              "stage": "call_a",
+              "durationMs": 8099.831720999995,
+              "parseMs": 0.05492300001787953,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 1135,
+                "reasoningTokens": 820
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low-tight",
+              "stage": "call_a",
+              "durationMs": 8677.833902999992,
+              "parseMs": 0.05881499999668449,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 481,
+                "outputTokens": 1334,
+                "reasoningTokens": 1084
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-low-tight",
+              "stage": "call_a",
+              "durationMs": 10463.412119999994,
+              "parseMs": 0.0895989999989979,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 482,
+                "outputTokens": 1615,
+                "reasoningTokens": 1388
+              }
+            }
+          ]
+        },
+        "callBLatencies": [
+          389.45595400000457,
+          483.5146180000156,
+          653.9392759999901,
+          661.323928999991,
+          686.0308739999964
+        ],
+        "callA": {
+          "p50": 8677.833902999992,
+          "p90": 10463.412119999994,
+          "p95": 10463.412119999994,
+          "min": 7170.321232999995,
+          "max": 10463.412119999994,
+          "medianInputTokens": 482,
+          "medianOutputTokens": 1334,
+          "medianReasoningTokens": 1084
+        },
+        "planOutcomes": {
+          "accepted": [
+            {
+              "profile": "call-a-low-tight",
+              "request": "request:trial:approach",
+              "round": 0,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            }
+          ],
+          "rejected:path_not_adjacent": [
+            {
+              "profile": "call-a-low-tight",
+              "request": "request:trial:finisher",
+              "round": 1,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-low-tight",
+              "request": "request:trial:finisher",
+              "round": 3,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            }
+          ],
+          "rejected:turn_with_path": [
+            {
+              "profile": "call-a-low-tight",
+              "request": "request:trial:approach",
+              "round": 2,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-low-tight",
+              "request": "request:trial:approach",
+              "round": 4,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            }
+          ]
+        }
+      },
+      "call-a-lean": {
+        "samples": 5,
+        "callASuccessful": 5,
+        "callAOutcomeCounts": {
+          "success": [
+            {
+              "scope": "provider",
+              "profileId": "call-a-lean",
+              "stage": "call_a",
+              "durationMs": 9625.384166000003,
+              "parseMs": 0.16824199999973644,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 467,
+                "outputTokens": 1521,
+                "reasoningTokens": 1217
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-lean",
+              "stage": "call_a",
+              "durationMs": 11754.605368000004,
+              "parseMs": 0.062332000001333654,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 466,
+                "outputTokens": 1891,
+                "reasoningTokens": 1671
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-lean",
+              "stage": "call_a",
+              "durationMs": 20065.725298999983,
+              "parseMs": 0.08528200001455843,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 467,
+                "outputTokens": 3213,
+                "reasoningTokens": 2992
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-lean",
+              "stage": "call_a",
+              "durationMs": 10949.458656000003,
+              "parseMs": 0.05649399998947047,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 466,
+                "outputTokens": 1743,
+                "reasoningTokens": 1592
+              }
+            },
+            {
+              "scope": "provider",
+              "profileId": "call-a-lean",
+              "stage": "call_a",
+              "durationMs": 20273.314774000028,
+              "parseMs": 0.08074899995699525,
+              "outcome": "success",
+              "usage": {
+                "inputTokens": 467,
+                "outputTokens": 3300,
+                "reasoningTokens": 3026
+              }
+            }
+          ]
+        },
+        "callBLatencies": [
+          439.6221150000056,
+          668.8743780000077,
+          685.7611420000321,
+          735.1000800000038,
+          1048.8479110000044
+        ],
+        "callA": {
+          "p50": 11754.605368000004,
+          "p90": 20273.314774000028,
+          "p95": 20273.314774000028,
+          "min": 9625.384166000003,
+          "max": 20273.314774000028,
+          "medianInputTokens": 467,
+          "medianOutputTokens": 1891,
+          "medianReasoningTokens": 1671
+        },
+        "planOutcomes": {
+          "rejected:turn_with_path": [
+            {
+              "profile": "call-a-lean",
+              "request": "request:trial:approach",
+              "round": 0,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-lean",
+              "request": "request:trial:approach",
+              "round": 2,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:turn_with_path",
+              "completion": "completed"
+            }
+          ],
+          "rejected:path_not_adjacent": [
+            {
+              "profile": "call-a-lean",
+              "request": "request:trial:finisher",
+              "round": 1,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            },
+            {
+              "profile": "call-a-lean",
+              "request": "request:trial:finisher",
+              "round": 3,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "rejected:path_not_adjacent",
+              "completion": "completed"
+            }
+          ],
+          "accepted": [
+            {
+              "profile": "call-a-lean",
+              "request": "request:trial:approach",
+              "round": 4,
+              "callA": null,
+              "callB": null,
+              "planOutcome": "accepted",
+              "completion": "completed"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "trials": [
+    {
+      "profile": "v0-quality",
+      "request": "request:trial:approach",
+      "round": 0,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low",
+      "request": "request:trial:approach",
+      "round": 0,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-none",
+      "request": "request:trial:approach",
+      "round": 0,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low-tight",
+      "request": "request:trial:approach",
+      "round": 0,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-lean",
+      "request": "request:trial:approach",
+      "round": 0,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "v0-quality",
+      "request": "request:trial:finisher",
+      "round": 1,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low",
+      "request": "request:trial:finisher",
+      "round": 1,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-none",
+      "request": "request:trial:finisher",
+      "round": 1,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low-tight",
+      "request": "request:trial:finisher",
+      "round": 1,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-lean",
+      "request": "request:trial:finisher",
+      "round": 1,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "v0-quality",
+      "request": "request:trial:approach",
+      "round": 2,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low",
+      "request": "request:trial:approach",
+      "round": 2,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-none",
+      "request": "request:trial:approach",
+      "round": 2,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low-tight",
+      "request": "request:trial:approach",
+      "round": 2,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-lean",
+      "request": "request:trial:approach",
+      "round": 2,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "v0-quality",
+      "request": "request:trial:finisher",
+      "round": 3,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low",
+      "request": "request:trial:finisher",
+      "round": 3,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-none",
+      "request": "request:trial:finisher",
+      "round": 3,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low-tight",
+      "request": "request:trial:finisher",
+      "round": 3,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-lean",
+      "request": "request:trial:finisher",
+      "round": 3,
+      "planOutcome": "rejected:path_not_adjacent",
+      "completion": "completed"
+    },
+    {
+      "profile": "v0-quality",
+      "request": "request:trial:approach",
+      "round": 4,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low",
+      "request": "request:trial:approach",
+      "round": 4,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-none",
+      "request": "request:trial:approach",
+      "round": 4,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-low-tight",
+      "request": "request:trial:approach",
+      "round": 4,
+      "planOutcome": "rejected:turn_with_path",
+      "completion": "completed"
+    },
+    {
+      "profile": "call-a-lean",
+      "request": "request:trial:approach",
+      "round": 4,
+      "planOutcome": "accepted",
+      "completion": "completed"
+    }
+  ],
+  "metrics": [
+    {
+      "profileId": "v0-quality",
+      "stage": "call_a",
+      "durationMs": 23066.348294,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 3592,
+        "reasoningTokens": 3315
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_b",
+      "durationMs": 719.1646299999993,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 927,
+        "outputTokens": 37,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_a",
+      "durationMs": 10497.481198999998,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 1610,
+        "reasoningTokens": 1351
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_b",
+      "durationMs": 631.3982520000063,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 908,
+        "outputTokens": 62,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_a",
+      "durationMs": 3236.874548,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 457,
+        "outputTokens": 403,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_b",
+      "durationMs": 859.9173320000045,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 1058,
+        "outputTokens": 62,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_a",
+      "durationMs": 10148.681606999999,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 1618,
+        "reasoningTokens": 1386
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_b",
+      "durationMs": 686.0308739999964,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 874,
+        "outputTokens": 37,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_a",
+      "durationMs": 9625.384166000003,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 467,
+        "outputTokens": 1521,
+        "reasoningTokens": 1217
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_b",
+      "durationMs": 1048.8479110000044,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 946,
+        "outputTokens": 54,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_a",
+      "durationMs": 14513.514507,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 481,
+        "outputTokens": 2322,
+        "reasoningTokens": 2122
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_b",
+      "durationMs": 458.1236009999993,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 847,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_a",
+      "durationMs": 5407.9669469999935,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 481,
+        "outputTokens": 801,
+        "reasoningTokens": 675
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_b",
+      "durationMs": 750.6166229999944,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 767,
+        "outputTokens": 38,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_a",
+      "durationMs": 3324.3643319999974,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 456,
+        "outputTokens": 356,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_b",
+      "durationMs": 966.5617439999914,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 1007,
+        "outputTokens": 30,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_a",
+      "durationMs": 7170.321232999995,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 481,
+        "outputTokens": 1167,
+        "reasoningTokens": 889
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_b",
+      "durationMs": 661.323928999991,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 928,
+        "outputTokens": 38,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_a",
+      "durationMs": 11754.605368000004,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 466,
+        "outputTokens": 1891,
+        "reasoningTokens": 1671
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_b",
+      "durationMs": 668.8743780000077,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 861,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_a",
+      "durationMs": 23066.920595999996,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 4013,
+        "reasoningTokens": 3768
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_b",
+      "durationMs": 812.2617480000044,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 892,
+        "outputTokens": 41,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_a",
+      "durationMs": 11741.943922000006,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 1852,
+        "reasoningTokens": 1601
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_b",
+      "durationMs": 691.4428559999797,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 893,
+        "outputTokens": 37,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_a",
+      "durationMs": 3079.9850769999903,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 457,
+        "outputTokens": 381,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_b",
+      "durationMs": 922.8411749999796,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 1044,
+        "outputTokens": 41,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_a",
+      "durationMs": 8099.831720999995,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 1135,
+        "reasoningTokens": 820
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_b",
+      "durationMs": 653.9392759999901,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 957,
+        "outputTokens": 54,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_a",
+      "durationMs": 20065.725298999983,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 467,
+        "outputTokens": 3213,
+        "reasoningTokens": 2992
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_b",
+      "durationMs": 735.1000800000038,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 863,
+        "outputTokens": 62,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_a",
+      "durationMs": 18538.742375,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 481,
+        "outputTokens": 2906,
+        "reasoningTokens": 2766
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_b",
+      "durationMs": 683.950920000003,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 781,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_a",
+      "durationMs": 8550.948723999987,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 481,
+        "outputTokens": 1215,
+        "reasoningTokens": 989
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_b",
+      "durationMs": 593.6714860000066,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 873,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_a",
+      "durationMs": 2848.6397930000094,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 456,
+        "outputTokens": 391,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_b",
+      "durationMs": 783.0595939999912,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 1045,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_a",
+      "durationMs": 8677.833902999992,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 481,
+        "outputTokens": 1334,
+        "reasoningTokens": 1084
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_b",
+      "durationMs": 389.45595400000457,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 898,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_a",
+      "durationMs": 10949.458656000003,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 466,
+        "outputTokens": 1743,
+        "reasoningTokens": 1592
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_b",
+      "durationMs": 439.6221150000056,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 792,
+        "outputTokens": 34,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_a",
+      "durationMs": 16373.034109,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 2678,
+        "reasoningTokens": 2415
+      }
+    },
+    {
+      "profileId": "v0-quality",
+      "stage": "call_b",
+      "durationMs": 470.8343680000107,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 909,
+        "outputTokens": 37,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_a",
+      "durationMs": 13537.566072000016,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 2183,
+        "reasoningTokens": 1974
+      }
+    },
+    {
+      "profileId": "call-a-low",
+      "stage": "call_b",
+      "durationMs": 475.7975180000067,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 851,
+        "outputTokens": 37,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_a",
+      "durationMs": 2953.106432999979,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 457,
+        "outputTokens": 334,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-none",
+      "stage": "call_b",
+      "durationMs": 808.4624000000185,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 987,
+        "outputTokens": 62,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_a",
+      "durationMs": 10463.412119999994,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 482,
+        "outputTokens": 1615,
+        "reasoningTokens": 1388
+      }
+    },
+    {
+      "profileId": "call-a-low-tight",
+      "stage": "call_b",
+      "durationMs": 483.5146180000156,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 869,
+        "outputTokens": 25,
+        "reasoningTokens": 0
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_a",
+      "durationMs": 20273.314774000028,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 467,
+        "outputTokens": 3300,
+        "reasoningTokens": 3026
+      }
+    },
+    {
+      "profileId": "call-a-lean",
+      "stage": "call_b",
+      "durationMs": 685.7611420000321,
+      "outcome": "success",
+      "usage": {
+        "inputTokens": 921,
+        "outputTokens": 37,
+        "reasoningTokens": 0
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { calculateTileViewportLayout, RESIZE_SETTLE_MS, TILE_SIZE_PX, type TileViewportLayout } from "@pokeman/tile-presentation";
-import type { Frame, RenderDomain, RenderDomainState, RenderDomainUpdate, SubsystemScope, ViewportSize } from "@loomrealm/subsystem";
+import type { Frame, RenderDomain, RenderDomainState, RenderDomainUpdate, RenderNode, SubsystemScope, Viewport, ViewportSize } from "@loomrealm/subsystem";
 import {
   compareActorId, validateBattleEffectContent, validateBattleSceneInit, validateRenderProjection,
   type ActorRenderProjection, type BattleEffectContent, type BattleSceneInit, type PresentationPort,
@@ -7,12 +7,40 @@ import {
   type ResolvedResourceRef, type SkillEffectProjection,
 } from "./contracts.js";
 import {
-  cameraFor, projectTiles, sameEffectProjection, sameLayout, sameMovement, sameProjection,
-  validateBattleArena, validateTileset, type LoadedBattleArena,
+  barHeightForWindowHeight, calculateMapGeometry, cameraFor, projectTiles, sameEffectProjection,
+  sameLayout, sameMovement, sameProjection, validateBattleArena, validateTileset,
+  type LoadedBattleArena,
 } from "./presentation-semantics.js";
 
 export type { PresentationErrorCode } from "./contracts.js";
-export { validateBattleArena } from "./presentation-semantics.js";
+export { validateBattleArena, calculateMapGeometry, barHeightForWindowHeight } from "./presentation-semantics.js";
+
+/** Optional BattlePresentationBuilder injection for map-scoped viewport mode. */
+export interface BattlePresentationOptions {
+  /**
+   * Viewport of the measured **pure map container** (HUD excluded). When
+   * provided, tile geometry uses the full reported content box without
+   * deducting the HUD barHeight again; the HUD bar height is derived from
+   * the window viewport instead. When omitted the legacy whole-window
+   * viewport (with internal bar deduction) is used unchanged.
+   */
+  readonly viewport?: Viewport;
+  /**
+   * Pre-created PokeMan UI-only RenderDomain (root `battle:layout`). When
+   * provided, the world tree is grafted INTO this domain as the layout's
+   * map-slot content (`battle:view`, slot "map") beside the Activity Panel
+   * (`battle:activity`, slot "panel"), so the real map component participates
+   * in the layout component's DOM tree instead of being a body-level sibling.
+   * The injected domain stays owned (and closed) by its creator.
+   */
+  readonly domain?: RenderDomain;
+}
+
+/** Stable RenderNode keys of the PokeMan UI-only layout shell. */
+export const BATTLE_LAYOUT_NODE_KEY = "battle:layout";
+export const BATTLE_ACTIVITY_NODE_KEY = "battle:activity";
+const MAP_SLOT_ATTRS = Object.freeze({ slot: "map" });
+const PANEL_SLOT_ATTRS = Object.freeze({ slot: "panel" });
 
 export class BattlePresentationError extends Error {
   constructor(readonly code: PresentationErrorCode, message: string = code, options?: ErrorOptions) { super(message, options); this.name = "BattlePresentationError"; }
@@ -51,15 +79,42 @@ function invalidData(error: unknown): BattlePresentationError { return error ins
 class Handler implements BattlePresentationHandler {
   private state: State = "NEW"; private session = new AbortController(); private generation = 0;
   private scene?: BattleSceneInit; private loaded?: LoadedBattleArena; private actorRefs = new Map<string, ResolvedResourceRef>(); private effects = new Map<string, EffectAsset>();
-  private layout?: TileViewportLayout; private domain?: RenderDomain; private unsubscribe?: () => void; private resizeTimer?: ReturnType<typeof setTimeout>; private pendingViewport?: ViewportSize;
+  private layout?: TileViewportLayout; private domain?: RenderDomain; private unsubscribe?: () => void; private windowUnsubscribe?: () => void; private resizeTimer?: ReturnType<typeof setTimeout>; private pendingViewport?: ViewportSize;
+  private mapViewport?: Viewport; private windowBarHeight: number | undefined;
+  private readonly injectedDomain?: RenderDomain;
   private visualEpoch = 0; private lastTick = -1; private projection?: RenderProjection; private seenEffects = new Map<string, SkillEffectProjection>(); private motionFacts = new Map<string, NonNullable<ActorRenderProjection["movement"]>>();
   private resolveFailure!: (failure: PresentationFailure) => void; private failureReported = false;
   readonly failure: Promise<PresentationFailure>;
   private readonly abortListener = () => this.close();
-  constructor(private readonly scope: SubsystemScope, private readonly frame: Frame) {
+  constructor(private readonly scope: SubsystemScope, private readonly frame: Frame, options?: BattlePresentationOptions) {
     this.failure = new Promise<PresentationFailure>((resolveFailure) => { this.resolveFailure = resolveFailure; });
+    if (options !== undefined && (options === null || typeof options !== "object")) {
+      throw new BattlePresentationError("PRESENTATION_INVALID_DATA", "Invalid BattlePresentationOptions");
+    }
+    if (options?.viewport !== undefined) {
+      const viewport = options.viewport;
+      if (viewport === null || typeof viewport !== "object" || typeof viewport.subscribe !== "function") {
+        throw new BattlePresentationError("PRESENTATION_INVALID_DATA", "Invalid map-scoped viewport adapter");
+      }
+      this.mapViewport = viewport;
+      const windowSize = this.scope.viewport?.current ?? null;
+      this.windowBarHeight = windowSize === null ? undefined : barHeightForWindowHeight(windowSize.height);
+    }
+    if (options?.domain !== undefined) {
+      const domain = options.domain;
+      if (domain === null || typeof domain !== "object" || typeof domain.replace !== "function" || typeof domain.update !== "function") {
+        throw new BattlePresentationError("PRESENTATION_INVALID_DATA", "Invalid injected UI RenderDomain");
+      }
+      this.injectedDomain = domain;
+    }
     frame.signal.addEventListener("abort", this.abortListener, { once: true }); scope.signal.addEventListener("abort", this.abortListener, { once: true });
     if (frame.signal.aborted || scope.signal.aborted) this.close();
+  }
+  private get viewportSource(): Viewport {
+    return this.mapViewport ?? this.scope.viewport;
+  }
+  private get barHeight(): number {
+    return this.mapViewport === undefined ? this.layout?.barHeight ?? 48 : this.windowBarHeight ?? 48;
   }
   async initialize(scene: BattleSceneInit): Promise<void> {
     if (this.state !== "NEW") throw new BattlePresentationError("PRESENTATION_INVALID_STATE");
@@ -91,11 +146,18 @@ class Handler implements BattlePresentationHandler {
       const viewport = await this.firstViewport(signal);
       if (this.state !== "INITIALIZING" || generation !== this.generation || signal.aborted) return;
       let layout: TileViewportLayout;
-      try { layout = calculateTileViewportLayout(viewport.width, viewport.height); } catch (error) { throw invalidData(error); }
+      try { layout = this.layoutFor(viewport.width, viewport.height); } catch (error) { throw invalidData(error); }
       this.loaded = loaded; this.actorRefs = new Map(actors); this.effects = new Map(effects); this.layout = layout;
-      this.unsubscribe = this.scope.viewport.subscribe((value) => this.onViewport(value));
-      const current = this.scope.viewport.current;
+      this.unsubscribe = this.viewportSource.subscribe((value) => this.onViewport(value));
+      const current = this.viewportSource.current;
       if (current !== null && (current.width !== viewport.width || current.height !== viewport.height)) this.onViewport(current);
+      if (this.mapViewport !== undefined) {
+        // In map-scoped mode the window viewport only feeds the HUD bar height.
+        this.windowUnsubscribe = this.scope.viewport.subscribe((value) => this.onWindowViewport(value));
+        if (this.windowBarHeight === undefined && this.scope.viewport.current !== null) {
+          this.windowBarHeight = barHeightForWindowHeight(this.scope.viewport.current.height);
+        }
+      }
       this.state = "INITIALIZED";
     } catch (error) {
       if (this.session.signal.aborted) return;
@@ -124,8 +186,18 @@ class Handler implements BattlePresentationHandler {
     const nextEpoch = this.visualEpoch + 1; if (!Number.isSafeInteger(nextEpoch)) throw this.failCommit(new Error("visualEpoch exhausted"));
     let payload: ReturnType<Handler["payloads"]>; try { payload = this.payloads(projection, nextEpoch, starts, this.state === "PAUSED"); } catch (error) { throw this.failCommit(error); }
     if (this.state === "INITIALIZED") {
-      const initial = this.renderState(payload); this.preflight(initial, payload.view, initial, "state");
-      try { this.domain = this.scope.createRenderDomain(initial); } catch (error) { throw this.failCommit(error); }
+      const initial = this.injectedDomain === undefined ? this.renderState(payload) : this.composedRenderState(payload);
+      this.preflight(initial, payload.view, initial, "state");
+      try {
+        if (this.injectedDomain !== undefined) {
+          // Graft the world tree into the layout component's map slot; the
+          // domain itself stays owned and closed by its creator.
+          this.injectedDomain.replace(initial);
+          this.domain = this.injectedDomain;
+        } else {
+          this.domain = this.scope.createRenderDomain(initial);
+        }
+      } catch (error) { throw this.failCommit(error); }
       this.state = "READY";
     } else {
       const update = this.renderUpdate(payload); this.preflight(update, payload.view, this.renderState(payload), "update");
@@ -145,14 +217,19 @@ class Handler implements BattlePresentationHandler {
     if (this.state === "CLOSED") return; this.state = "CLOSED"; this.generation += 1; this.session.abort();
     this.frame.signal.removeEventListener("abort", this.abortListener); this.scope.signal.removeEventListener("abort", this.abortListener);
     const unsubscribe = this.unsubscribe; this.unsubscribe = undefined; try { unsubscribe?.(); } catch {}
-    if (this.resizeTimer) clearTimeout(this.resizeTimer); this.resizeTimer = undefined; this.pendingViewport = undefined;
-    const domain = this.domain; this.domain = undefined; try { domain?.close(); } catch {}
+    const windowUnsubscribe = this.windowUnsubscribe; this.windowUnsubscribe = undefined; try { windowUnsubscribe?.(); } catch {}
+    if (this.resizeTimer) clearTimeout(this.resizeTimer); this.resizeTimer = undefined; this.pendingViewport = undefined; this.mapViewport = undefined;
+    const domain = this.domain; this.domain = undefined;
+    if (this.injectedDomain === undefined) { try { domain?.close(); } catch {} }
     this.effects.clear(); this.actorRefs.clear(); this.seenEffects.clear(); this.motionFacts.clear();
     this.projection = undefined; this.loaded = undefined; this.layout = undefined; this.scene = undefined;
   }
+  private layoutFor(width: number, height: number): TileViewportLayout {
+    return this.mapViewport === undefined ? calculateTileViewportLayout(width, height) : calculateMapGeometry(width, height);
+  }
   private firstViewport(signal: AbortSignal): Promise<ViewportSize> {
     if (signal.aborted) return Promise.reject(new DOMException("Presentation closed", "AbortError"));
-    if (this.scope.viewport.current !== null) return Promise.resolve(this.scope.viewport.current);
+    if (this.viewportSource.current !== null) return Promise.resolve(this.viewportSource.current);
     return new Promise((resolve, reject) => {
       let settled = false; let unsubscribe = () => {};
       const finish = (value: ViewportSize) => {
@@ -161,7 +238,7 @@ class Handler implements BattlePresentationHandler {
       const aborted = () => {
         if (settled) return; settled = true; unsubscribe(); reject(new DOMException("Presentation closed", "AbortError"));
       };
-      unsubscribe = this.scope.viewport.subscribe((value) => { if (value !== null) finish(value); });
+      unsubscribe = this.viewportSource.subscribe((value) => { if (value !== null) finish(value); });
       if (settled) unsubscribe();
       signal.addEventListener("abort", aborted, { once: true });
       if (signal.aborted) aborted();
@@ -174,9 +251,18 @@ class Handler implements BattlePresentationHandler {
       try { this.settleResize(); } catch (error) { this.reportAsyncFailure(error); }
     }, RESIZE_SETTLE_MS);
   }
+  private onWindowViewport(value: ViewportSize | null) {
+    if (this.state === "CLOSED" || value === null || this.mapViewport === undefined) return;
+    const nextBar = barHeightForWindowHeight(value.height);
+    if (nextBar === this.windowBarHeight) return;
+    this.windowBarHeight = nextBar;
+    if ((this.state === "READY" || this.state === "PAUSED") && this.projection) {
+      try { this.commitLocal(this.state === "PAUSED"); } catch (error) { this.reportAsyncFailure(error); }
+    }
+  }
   private settleResize() {
     if (this.state === "CLOSED" || !this.pendingViewport || !this.layout) return;
-    let layout: TileViewportLayout; try { layout = calculateTileViewportLayout(this.pendingViewport.width, this.pendingViewport.height); } catch (error) { throw this.failCommit(error); }
+    let layout: TileViewportLayout; try { layout = this.layoutFor(this.pendingViewport.width, this.pendingViewport.height); } catch (error) { throw this.failCommit(error); }
     this.pendingViewport = undefined; if (sameLayout(layout, this.layout)) return; this.layout = layout;
     if ((this.state === "READY" || this.state === "PAUSED") && this.projection) this.commitLocal(this.state === "PAUSED");
   }
@@ -196,13 +282,35 @@ class Handler implements BattlePresentationHandler {
   }
   private payloads(projection: RenderProjection, visualEpoch: number, effects: readonly SkillEffectProjection[], paused: boolean) {
     const actors = [...projection.actors].sort((a, b) => compareActorId(a.actorId, b.actorId)); const camera = cameraFor(this.loaded!.arena, this.layout!, actors);
-    const view = { sceneEpoch: this.scene!.sceneEpoch, visualEpoch, paused, viewportWidth: this.layout!.windowWidth, viewportHeight: this.layout!.windowHeight, barHeight: this.layout!.barHeight, contentWidth: this.layout!.contentWidth, contentHeight: this.layout!.contentHeight, columns: this.layout!.columns, rows: this.layout!.rows, logicalWidth: this.layout!.logicalWidth, logicalHeight: this.layout!.logicalHeight, scaleX: this.layout!.scaleX, scaleY: this.layout!.scaleY, mapWidth: this.loaded!.arena.width, mapHeight: this.loaded!.arena.height, ...camera, tileset: this.loaded!.tilesetRef, autotiles: this.loaded!.autotileRefs, tiles: projectTiles(this.loaded!, camera.cameraX, camera.cameraY, this.layout!) };
+    const view = { sceneEpoch: this.scene!.sceneEpoch, visualEpoch, paused, viewportWidth: this.layout!.windowWidth, viewportHeight: this.layout!.windowHeight, barHeight: this.barHeight, contentWidth: this.layout!.contentWidth, contentHeight: this.layout!.contentHeight, columns: this.layout!.columns, rows: this.layout!.rows, logicalWidth: this.layout!.logicalWidth, logicalHeight: this.layout!.logicalHeight, scaleX: this.layout!.scaleX, scaleY: this.layout!.scaleY, mapWidth: this.loaded!.arena.width, mapHeight: this.loaded!.arena.height, ...camera, tileset: this.loaded!.tilesetRef, autotiles: this.loaded!.autotileRefs, tiles: projectTiles(this.loaded!, camera.cameraX, camera.cameraY, this.layout!) };
     const actorData = actors.map((actor) => ({ sceneEpoch: this.scene!.sceneEpoch, visualEpoch, paused, actorId: actor.actorId, tileX: actor.tile.x, tileY: actor.tile.y, direction: actor.direction, sprite: this.actorRefs.get(actor.actorId)!, life: actor.life, motion: actor.movement === null ? null : { id: actor.movement.motionId, fromWorldX: safeProduct(actor.movement.from.x, TILE_SIZE_PX, "movement.fromWorldX"), fromWorldY: safeProduct(actor.movement.from.y, TILE_SIZE_PX, "movement.fromWorldY"), toWorldX: safeProduct(actor.movement.to.x, TILE_SIZE_PX, "movement.toWorldX"), toWorldY: safeProduct(actor.movement.to.y, TILE_SIZE_PX, "movement.toWorldY"), durationMs: safeProduct(actor.movement.completeTick - actor.movement.startTick, this.scene!.tickDurationMs, "movement.durationMs") } }));
     const effectData = { sceneEpoch: this.scene!.sceneEpoch, visualEpoch, paused, effectStarts: effects.map((effect) => { const asset = this.effects.get(effect.effect)!; return { effectId: effect.effectId, result: effect.result as "hit" | "immune", image: asset.image, worldX: safeSum(safeProduct(effect.tile!.x, TILE_SIZE_PX, "effect.worldX"), TILE_SIZE_PX / 2, "effect.worldX"), worldY: safeSum(safeProduct(effect.tile!.y, TILE_SIZE_PX, "effect.worldY"), TILE_SIZE_PX / 2, "effect.worldY"), fadeInMs: safeProduct(asset.content.timing.fade_in_ticks, this.scene!.tickDurationMs, "effect.fadeInMs"), holdMs: safeProduct(asset.content.timing.hold_ticks, this.scene!.tickDurationMs, "effect.holdMs"), fadeOutMs: safeProduct(asset.content.timing.fade_out_ticks, this.scene!.tickDurationMs, "effect.fadeOutMs") }; }) };
     const hud = { sceneEpoch: this.scene!.sceneEpoch, visualEpoch, actors: actors.map((actor) => ({ actorId: actor.actorId, team: this.scene!.actors.find((item) => item.actorId === actor.actorId)!.team, hp: actor.hp, maxHp: actor.maxHp })) };
     return { view, actors: actorData, effects: effectData, hud };
   }
   private renderState(p: ReturnType<Handler["payloads"]>): RenderDomainState { return { zIndex: 0, roots: [{ key: "battle:view", tag: "lr-battle-view", attrs: {}, data: p.view as never, children: [...p.actors.map((data) => ({ key: `battle:actor:${data.actorId}`, tag: "lr-battle-actor", attrs: { slot: "world" }, data: data as never, children: [] })), { key: "battle:effects", tag: "lr-battle-effects", attrs: { slot: "world" }, data: p.effects as never, children: [] }, { key: "battle:hud", tag: "lr-battle-hud", attrs: { slot: "hud" }, data: p.hud as never, children: [] }] }] } }
+  /**
+   * Composed tree for the injected PokeMan UI-only domain: the whole world
+   * subtree (unchanged battle:view subtree shape) becomes the layout
+   * component's map-slot content, with the Activity Panel as its panel-slot
+   * sibling. One real DOM layout tree owns map | panel | HUD placement.
+   */
+  private composedRenderState(p: ReturnType<Handler["payloads"]>): RenderDomainState {
+    const view = this.renderState(p).roots[0] as RenderNode;
+    return {
+      zIndex: 0,
+      roots: [{
+        key: BATTLE_LAYOUT_NODE_KEY,
+        tag: "lr-battle-layout",
+        attrs: {},
+        data: {},
+        children: [
+          { key: view.key, tag: view.tag, attrs: MAP_SLOT_ATTRS, data: view.data, children: view.children },
+          { key: BATTLE_ACTIVITY_NODE_KEY, tag: "lr-battle-activity", attrs: PANEL_SLOT_ATTRS, data: { messages: [] } as never, children: [] },
+        ],
+      }],
+    };
+  }
   private renderUpdate(p: ReturnType<Handler["payloads"]>): RenderDomainUpdate { return { nodes: [{ key: "battle:view", data: { set: p.view as never } }, ...p.actors.map((data) => ({ key: `battle:actor:${data.actorId}`, data: { set: data as never } })), { key: "battle:effects", data: { set: p.effects as never } }, { key: "battle:hud", data: { set: p.hud as never } }] } }
   private preflight(candidate: unknown, view: unknown, prospective: RenderDomainState, kind: "state" | "update") {
     const updates = (candidate as { nodes?: readonly { key: string; data?: { set?: unknown } }[] }).nodes ?? [];
@@ -236,8 +344,8 @@ class Handler implements BattlePresentationHandler {
 
 export class BattlePresentationBuilder {
   private built = false;
-  constructor(private readonly scope: SubsystemScope, private readonly frame: Frame) {}
-  build(): BattlePresentationHandler { if (this.built) throw new BattlePresentationError("PRESENTATION_INVALID_STATE"); this.built = true; return new Handler(this.scope, this.frame); }
+  constructor(private readonly scope: SubsystemScope, private readonly frame: Frame, private readonly options?: BattlePresentationOptions) {}
+  build(): BattlePresentationHandler { if (this.built) throw new BattlePresentationError("PRESENTATION_INVALID_STATE"); this.built = true; return new Handler(this.scope, this.frame, this.options); }
 }
 
 const pendingFailure = (): Promise<PresentationFailure> => new Promise(() => {});

@@ -24,6 +24,12 @@ import { takeCounter } from "./numeric.js";
 export interface RequestDecisionCommand {
   readonly type: "request_decision";
   readonly request: DecisionRequest;
+  /**
+   * Internal trigger reason metadata. Never part of DecisionRequest and never
+   * given to the model; Runtime uses it to decide whether a decision turn is
+   * player-perceivable (decision.started).
+   */
+  readonly reason: DecisionReason;
 }
 
 export type DecisionReason =
@@ -33,7 +39,8 @@ export type DecisionReason =
   | "plan_failed"
   | "damaging_hit"
   | "hold_reobserve"
-  | "decision_attempt_failed";
+  | "decision_attempt_failed"
+  | "correction";
 
 function point(value: GridPosition): GridPosition {
   return Object.freeze({ x: value.x, y: value.y });
@@ -156,6 +163,7 @@ export function ensureDecision(
   const actorDefinition = definition.actors.find((item) => item.actorId === actor.actorId)!;
   return {
     type: "request_decision",
+    reason,
     request: Object.freeze({
       requestId,
       actorId: actor.actorId,
@@ -182,6 +190,7 @@ export function makeCorrection(
   const actorDefinition = definition.actors.find((item) => item.actorId === actor.actorId)!;
   return {
     type: "request_decision",
+    reason: "correction",
     request: Object.freeze({
       requestId,
       actorId: actor.actorId,

@@ -1,6 +1,6 @@
 # Battle v0 AI 过程文本：统一消息流补充说明
 
-> 状态：**ADDITIVE PROPOSAL / NON-AUTHORITATIVE / NOT YET IMPLEMENTED**
+> 状态：**ADDITIVE PROPOSAL / NON-AUTHORITATIVE / IMPLEMENTED（见 [实现记录](./BATTLE_MESSAGE_FEED_IMPLEMENTATION.md)）**
 >
 > 主设计：[Battle 决策性能与战斗消息流设计方案](./BATTLE_DECISION_PERFORMANCE_AND_MESSAGE_FEED_DESIGN.md)。
 >
@@ -120,4 +120,6 @@ Runtime 在追加 `decision.analysis_completed` 前，必须校验：
 7. UI 以 textContent 等安全纯文本方式显示 AI 输出；长文本、未知 Actor ID 和消息面板故障不影响 Battle。
 8. Battle 关闭后消息与订阅全部释放；不修改已有 `Message Frame` 的交互语义。
 
-> **实施状态：未落地。** 当前代码尚无可选 observer、`reportDecisionAnalysis` 或统一 Feed 事件桥接；不得将本文当成已完成资格验证的实现说明。
+> **实施状态：已落地。** 可选 observer（`DeepSeekDecision` 第二构造参数）、
+> Runtime `reportDecisionAnalysis` / `onMessage`、统一 Feed/Panel 与关闭清理的
+> 实现位置和验证结果见 [BATTLE_MESSAGE_FEED_IMPLEMENTATION.md](./BATTLE_MESSAGE_FEED_IMPLEMENTATION.md)。

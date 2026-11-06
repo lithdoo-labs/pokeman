@@ -1,3 +1,6 @@
-lr-battle-view{display:block;position:relative;width:100vw;height:100vh;overflow:hidden;background:#10131a;image-rendering:pixelated}
+/* lr-battle-view, lr-battle-layout and lr-battle-activity own their host
+   geometry (fixed map region / upper map+panel split / bottom HUD) through
+   their shadow-DOM :host styles; page rules here only style the world nodes
+   projected into lr-battle-view's slots. */
 lr-battle-actor,lr-battle-effects{display:block;position:absolute;pointer-events:none;image-rendering:pixelated}
 lr-battle-hud{display:block;position:absolute;left:0;right:0;bottom:0;z-index:2147483647}
