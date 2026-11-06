@@ -219,7 +219,9 @@ function normalizeProviderResponse(response: DeepSeekTransportResponse): { text:
   if (response.status === 429) failureWith("attempt_failure", "DECISION_PROVIDER_RATE_LIMITED");
   if (response.status >= 500) failureWith("attempt_failure", "DECISION_PROVIDER_UNAVAILABLE");
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`DeepSeek Responses contract rejected with HTTP ${response.status}`);
+    // Keep all non-2xx statuses inside the typed Decision failure contract
+    // and record any usage actually returned in the error response.
+    failureWith("attempt_failure", "DECISION_PROVIDER_UNAVAILABLE");
   }
   let value: unknown;
   try {
@@ -441,13 +443,19 @@ export class DeepSeekProfiledDecision implements DecisionPort {
         } catch { /* observer failures never affect the Decision */ }
       }
       const callBStartedAt = nowMs();
+      let callBOutcome: CallOutcome | undefined;
       try {
-        const outcome = await callProfiledDeepSeek(this.#transport, buildProfiledMaterializationRequest(battle, strategyMemo), signal);
-        const plan = parsePlanSubmission(outcome.text);
-        this.#recordProviderMetric("call_b", callBStartedAt, outcome, "success");
+        callBOutcome = await callProfiledDeepSeek(this.#transport, buildProfiledMaterializationRequest(battle, strategyMemo), signal);
+        const plan = parsePlanSubmission(callBOutcome.text);
+        this.#recordProviderMetric("call_b", callBStartedAt, callBOutcome, "success");
         return Object.freeze({ type: "completed", plan: copyPlan(plan) });
       } catch (error) {
-        this.#recordProviderFailure("call_b", error, callBStartedAt);
+        // A successful Provider response can contain usage even when the
+        // subsequent Plan parse fails. Preserve it in the failure metric.
+        const metricError = callBOutcome !== undefined && error instanceof WorkflowFailure && error.usage === undefined
+          ? new WorkflowFailure(error.failure, error.httpStatus, callBOutcome.usage)
+          : error;
+        this.#recordProviderFailure("call_b", metricError, callBStartedAt);
         throw error;
       }
     } catch (error) {
