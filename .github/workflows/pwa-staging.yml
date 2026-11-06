@@ -14,7 +14,7 @@ on:
       - '\[FSDB\]PokeMan/**'
       - "scripts/pwa/**"
       - "scripts/prepare-pwa-content.mjs"
-      - "scripts/ci/run-pokeman.sh"
+      - "scripts/ci/**"
       - "doc/pwa-deployment-migration.md"
       - "scripts/sync-map-presentation.mjs"
       - "test/**"
@@ -60,7 +60,7 @@ jobs:
           )
         )
       }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v6
@@ -71,13 +71,18 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - name: Build PokeMan workspace and run product contracts
+          cache: npm
+          cache-dependency-path: loom-realm/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pokeman-pw-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('loom-realm/package-lock.json') }}
+      - name: Release preparation (build + PWA unit tests, no Full rerun)
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:loom-realm)" = "$(git -C loom-realm rev-parse HEAD)"
-          bash scripts/ci/run-pokeman.sh
-          node --test scripts/pwa/test/*.test.mjs
+          bash scripts/ci/run-pokeman.sh release
       - name: Build generic PWA installation bundle
         shell: bash
         run: |

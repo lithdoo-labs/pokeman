@@ -16,7 +16,7 @@ concurrency:
 jobs:
   test:
     name: PokeMan contracts and Map
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
@@ -25,5 +25,13 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: loom-realm/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pokeman-pw-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('loom-realm/package-lock.json') }}
       - name: Build LoomRealm packages and run PokeMan tests
-        run: bash scripts/ci/run-pokeman.sh
+        run: bash scripts/ci/run-pokeman.sh full
+      - name: Verify verification tier contracts
+        run: python3 -m unittest discover -s tests -p 'test_ci_layers.py' -v
