@@ -618,7 +618,7 @@ def execute(args):
             f"Owner feedback / PR review (ordered):\n{json.dumps(inp['feedback'], ensure_ascii=False)}\n\n"
             "Implement the requested changes in the checked-out workspace. "
             "On revisions, preserve existing implementation except for requested fixes. "
-            "Add/execute appropriate tests when possible. "
+            "During iterative development prefer scoped Fast checks with `bash scripts/ci/run-pokeman.sh fast battle` (or `fast battle-browser`, `fast map`, `fast product` as relevant). Before claiming final acceptance run `bash scripts/ci/run-pokeman.sh full` or explicitly report blockers. The Release tier is for PWA qualification, not repeated during every iteration. "
             "Never change .github/, scripts/issue_agent/, scripts/ci/, loom-realm/, "
             "[FSDB]PokeMan/, AGENTS.md, .env or OpenCode config. "
             "Do not run git push, git commit, gh or attempt to publish a PR. "

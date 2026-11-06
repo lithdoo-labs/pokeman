@@ -4,6 +4,33 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
+# Full remains the default for existing callers.
+mode="${1:-full}"
+scope="${2:-battle}"
+usage() {
+  cat <<'USAGE'
+PokeMan verification:
+  bash scripts/ci/run-pokeman.sh fast battle          # Battle unit tests
+  bash scripts/ci/run-pokeman.sh fast battle-browser  # Battle Chromium tests
+  bash scripts/ci/run-pokeman.sh fast map             # Map unit tests
+  bash scripts/ci/run-pokeman.sh fast product         # Focused product integration
+  bash scripts/ci/run-pokeman.sh full                 # Complete regression
+  bash scripts/ci/run-pokeman.sh release              # PWA preparation and unit checks
+Release workflow builds the PWA bundle and executes real staging Chromium E2E.
+USAGE
+}
+case "$mode" in
+  -h|--help|help) usage; exit 0 ;;
+  fast)
+    case "$scope" in battle|battle-browser|map|product) ;; *) echo "Invalid fast scope: $scope" >&2; usage >&2; exit 2 ;; esac
+    if (( $# > 2 )); then usage >&2; exit 2; fi
+    ;;
+  full|release)
+    if (( $# > 1 )); then usage >&2; exit 2; fi
+    ;;
+  *) echo "Invalid verification mode: $mode" >&2; usage >&2; exit 2 ;;
+esac
+
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 corepack enable npm
 
@@ -53,18 +80,61 @@ link_dependency lit
 link_dependency @awesome.me
 
 export PATH="$root/loom-realm/node_modules/.bin:$PATH"
-for package in game-common-controls schema-form rpg-dialogue; do
-  (cd "loom-realm/game-libs/$package" && npm run build)
-done
-for package in tile-presentation map battle; do
+# Fast skips unrelated PokeMan packages and browser setup.
+if [ "$mode" = "fast" ]; then
+  case "$scope" in
+    battle|battle-browser) package_builds=(tile-presentation battle) ;;
+    map) package_builds=(tile-presentation map) ;;
+    product)
+      for package in game-common-controls schema-form rpg-dialogue; do
+        (cd "loom-realm/game-libs/$package" && npm run build)
+      done
+      package_builds=(tile-presentation map battle)
+      ;;
+  esac
+else
+  for package in game-common-controls schema-form rpg-dialogue; do
+    (cd "loom-realm/game-libs/$package" && npm run build)
+  done
+  package_builds=(tile-presentation map battle)
+fi
+for package in "${package_builds[@]}"; do
   (cd "game-libs/$package" && npm run build)
 done
 
-npx --prefix "$root/loom-realm" playwright install --with-deps chromium
-export LOOMREALM_CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath())')"
-test -x "$LOOMREALM_CHROMIUM_PATH"
-
-node --test --test-concurrency=1 test/*.test.mjs
-node --test --test-concurrency=1 game-libs/map/test/*.test.mjs
-node --test --test-concurrency=1 "test/essentials-map/tools/fixtures/essentials-v21.1/*.test.mjs"
-node --test --test-concurrency=1 game-libs/battle/test/*.test.mjs
+case "$mode" in
+  fast)
+    case "$scope" in
+      battle)
+        # Discover new Battle unit files; do not accidentally run browser E2E.
+        mapfile -d '' -t tests < <(find game-libs/battle/test -maxdepth 1 -type f -name '*.test.mjs' ! -name '*browser*' -print0 | sort -z)
+        if (( ${#tests[@]} == 0 )); then echo "No Battle unit tests found" >&2; exit 1; fi
+        node --test --test-concurrency=1 "${tests[@]}"
+        ;;
+      battle-browser)
+        source "$root/scripts/ci/setup-playwright.sh"
+        mapfile -d '' -t tests < <(find game-libs/battle/test -maxdepth 1 -type f -name '*browser*.test.mjs' -print0 | sort -z)
+        if (( ${#tests[@]} == 0 )); then echo "No Battle browser tests found" >&2; exit 1; fi
+        node --test --test-concurrency=1 "${tests[@]}"
+        ;;
+      map) node --test --test-concurrency=1 game-libs/map/test/*.test.mjs ;;
+      product)
+        node --test --test-concurrency=1 \
+          test/battle-integration.test.mjs \
+          test/deepseek-config.test.mjs \
+          test/presentation-sync.test.mjs
+        ;;
+    esac
+    ;;
+  full)
+    source "$root/scripts/ci/setup-playwright.sh"
+    node --test --test-concurrency=1 test/*.test.mjs
+    node --test --test-concurrency=1 game-libs/map/test/*.test.mjs
+    node --test --test-concurrency=1 "test/essentials-map/tools/fixtures/essentials-v21.1/*.test.mjs"
+    node --test --test-concurrency=1 game-libs/battle/test/*.test.mjs
+    ;;
+  release)
+    source "$root/scripts/ci/setup-playwright.sh"
+    node --test --test-concurrency=1 scripts/pwa/test/*.test.mjs
+    ;;
+esac
