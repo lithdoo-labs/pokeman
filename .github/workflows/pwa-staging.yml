@@ -178,4 +178,17 @@ jobs:
           fi
           test -S /var/run/docker.sock
           test -d "$PWA_DATA_ROOT"
-          node loom-realm/apps/pwa/scripts/deploy-staging.mjs
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_SHA"
+          publisher="$PWA_DATA_ROOT/publisher/bin/deploy.mjs"
+          test -f "$publisher"
+          # The single-game deploy-staging.mjs replaces the whole site root.
+          # This installed publisher keeps the other game's release mounted.
+          node "$publisher" publish \
+            --app pokeman \
+            --source "$GITHUB_WORKSPACE/loom-realm/apps/pwa/dist/staging/pwa/pokeman" \
+            --commit "$EXPECTED_SHA" \
+            --game-root "$GITHUB_WORKSPACE" \
+            --data-root "$PWA_DATA_ROOT" \
+            --engine-root "$PWA_ENGINE_DATA_ROOT" \
+            --source-run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
