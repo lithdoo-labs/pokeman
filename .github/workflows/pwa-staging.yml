@@ -178,7 +178,9 @@ jobs:
           fi
           test -S /var/run/docker.sock
           test -d "$PWA_DATA_ROOT"
-          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          # The labs workspace is shallow, so moving origin/main to this commit
+          # is not a fast-forward even though ls-remote already proved it is main.
+          git update-ref refs/remotes/origin/main "$EXPECTED_SHA"
           test "$(git rev-parse origin/main)" = "$EXPECTED_SHA"
           publisher="$PWA_DATA_ROOT/publisher/bin/deploy.mjs"
           test -f "$publisher"
