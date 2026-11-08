@@ -2,7 +2,7 @@ import { cancelled, completed, defineSubsystem, failed } from "@loomrealm/subsys
 import { BattlePresentationBuilder } from "@pokeman/game-battle/presentation";
 import { BattleSimulationBuilder } from "@pokeman/game-battle/simulation";
 import { DeepSeekDecision } from "@pokeman/game-battle/decision";
-import { DeepSeekProfiledDecision, DEEPSEEK_CALL_A_PROFILES } from "@pokeman/game-battle/decision-profiled";
+import { DeepSeekProfiledDecision } from "@pokeman/game-battle/decision-profiled";
 import { createBattleMessageFeed, formatActivityEntries } from "@pokeman/game-battle/messages";
 import { subscribeHostLifecycle } from "@loomrealm/session-events";
 import { DEEPSEEK_SESSION_CONFIG_KEY, isExactDeepSeekSessionConfig } from "./deepseek-config.mjs";
@@ -24,17 +24,10 @@ export const BATTLE_MESSAGE_FEED_CAPACITY = 100;
  * `call-a-low` kept the frozen prompt and token ceiling while roughly halving
  * the observed Call A p50 latency of the v0 `high` control, with comparable
  * one-shot Plan acceptance in the recorded small samples. `v0-quality`
- * remains the frozen control profile; `POKEMAN_BATTLE_CALL_A_PROFILE` may
- * override the product default with any known profile id for trials.
+ * remains the frozen control profile. Product code passes this constant into
+ * `DeepSeekProfiledDecision`; trial scripts choose other profiles themselves.
  */
 export const BATTLE_CALL_A_PROFILE_DEFAULT = "call-a-low";
-
-function selectCallAProfile() {
-  const requested = process.env.POKEMAN_BATTLE_CALL_A_PROFILE;
-  return typeof requested === "string" && Object.hasOwn(DEEPSEEK_CALL_A_PROFILES, requested)
-    ? requested
-    : BATTLE_CALL_A_PROFILE_DEFAULT;
-}
 
 /**
  * Best-effort decision-metrics observer: receives every provider Call A/Call B
@@ -327,7 +320,7 @@ export function createPokeManBattleSubsystem(scope, dependencies = {}) {
         const decision = dependencies.decision
           ?? (dependencies.DeepSeekDecision !== undefined
             ? new (dependencies.DeepSeekDecision ?? DeepSeekDecision)({ transport }, processMessageObserver)
-            : new DeepSeekProfiledDecision({ transport, profile: selectCallAProfile(), metricsSink }, processMessageObserver));
+            : new DeepSeekProfiledDecision({ transport, profile: BATTLE_CALL_A_PROFILE_DEFAULT, metricsSink }, processMessageObserver));
         const presentation = dependencies.presentation
           ?? new PresentationBuilder(scope, frame, {
             ...(viewportBridge === null ? {} : { viewport: viewportBridge.adapter }),

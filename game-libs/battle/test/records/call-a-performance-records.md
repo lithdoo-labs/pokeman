@@ -67,8 +67,8 @@ Provider 确认支持 `reasoning.effort: "none"`（`call-a-none` 全部成功且
    验证前不作为默认；它是后续最有价值的候选。`call-a-low-tight` 的
    max_output_tokens=4096 虽在本组未触发 incomplete，但余量小于观测到的
    v0 输出（曾达 3516），存在截断风险；`call-a-lean` 无延迟优势。
-4. `v0-quality` 完整保留为对照组（`POKEMAN_BATTLE_CALL_A_PROFILE=v0-quality`
-   可随时切回），Simulation Plan 校验、Replay、Battle 权威未做任何放宽。
+4. `v0-quality` 完整保留为对照组（试验脚本直接传入 profile 参数，例如
+   `real-battle-trial.mjs v0-quality`），Simulation Plan 校验、Replay、Battle 权威未做任何放宽。
 
 ## 四、复现方式
 

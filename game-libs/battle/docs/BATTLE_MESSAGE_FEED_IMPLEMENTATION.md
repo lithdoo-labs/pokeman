@@ -31,7 +31,7 @@
 | 相同 Observation/Prompt/Seed 交错对照试验 + 记录样本量、延迟、usage、acceptance | `test/tools/call-a-trials.mjs` + `test/decision-performance.test.mjs`（离线管线）+ 真实 opt-in 试验 | `test/decision-performance.test.mjs`；记录在 [`test/records/call-a-performance-records.md`](../test/records/call-a-performance-records.md)（含真实 JSON）| 真实试验已执行（见记录）；CI 无凭据时显式跳过并写回原因 |
 | 不设 p50/p95/胜率硬门槛；不改 Plan 校验；不宣称显著性 | 记录文档与 harness 均为纯观测；`validatePlan` 未改动（`test/simulation*.test.mjs` 全量回归）| — | 满足 |
 | `DEEPSEEK_API_KEY` 仅从 `process.env` 读取 | `test/decision-performance.test.mjs`（与既有 `BATTLE_DEEPSEEK_SMOKE` 相同模式：flag+key 双重 opt-in）；不写入任何文件/参数/日志 | 测试断言记录文件不含凭据 | 通过 |
-| 选定配置与理由 | 产品默认 `call-a-low`（`subsystems/battle.mjs` `BATTLE_CALL_A_PROFILE_DEFAULT`，`POKEMAN_BATTLE_CALL_A_PROFILE` 可覆盖）| `test/battle-integration.test.mjs`（走真实 Profiled 决策的完整接线）| 记录见性能记录文档第三节 |
+| 选定配置与理由 | 产品默认 `call-a-low`（`subsystems/battle.mjs` 只传入常量 `BATTLE_CALL_A_PROFILE_DEFAULT`；试验脚本自行选择其他 profile）| `test/battle-integration.test.mjs`（走真实 Profiled 决策的完整接线）| 记录见性能记录文档第三节 |
 
 ## B. Runtime / Simulation 权威战斗消息
 
